@@ -157,7 +157,7 @@ func BanIpFromPSTN(mm map[string]string) {
 		vv1 := string(v1)
 		LoggerString(kk1 + " - " + vv1)
 	}
-	rex2, err := regexp.Compile(`^sip:(\S+)@(\d+)\.(\d+)\.(\d+)\.(\d+)$`)
+	rex2, err := regexp.Compile(`^sip:(\S+)\@(\d+)\.(\d+)\.(\d+)\.(\d+)$`)
 	res2 := rex2.FindStringSubmatch(mm["sipuri"])
 	for v2, k2 := range res2 {
 		kk2 := string(k2)
