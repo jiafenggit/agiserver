@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"github.com/takama/daemon"
 	"github.com/zaf/agi"
+	"time"
 )
 
 const (
@@ -19,6 +20,7 @@ const (
 	port 		= "4573"
 )
 
+var LOGPATH = "/var/log/asterisk/AGISERVER_log"
 var stdlog, errlog *log.Logger
 
 type Service struct {
@@ -105,30 +107,43 @@ func spawnAgi(c net.Conn) {
 		log.Printf("Error Parsing AGI environment: %v\n", err)
 		return
 	}
-	testAgi(myAgi)
+	agiSess(myAgi)
 	return
 }
 
-func testAgi(sess *agi.Session) {
-	var tests, pass int
+func agiSess(sess *agi.Session) {
 	var err error
-	var r agi.Reply
-	sess.Verbose("Testing channelstatus...")
-	r, err = sess.ChannelStatus()
-	if err != nil || r.Res != 6 {
-		sess.Verbose("Failed.")
-	} else {
-		pass++
+	LoggerAGI(sess)
+	startvar, err := sess.GetVariable("STARTVAR")
+	if err == nil {
+		if startvar.Dat == "block" {
+			var B = make(map[string][]map[string]string)
+			var b = make(map[string]string)
+			useragent, err := sess.GetVariable("CHANNEL(useragent)")
+			if err != nil {
+				b["useragent"] = useragent.Dat
+			}
+			sipuri, err := sess.GetVariable("SIPURI")
+			if err != nil {
+				b["sipuri"] = sipuri.Dat
+			}
+			sipdomain, err := sess.GetVariable("SIPDOMAIN")
+			if err != nil {
+				b["sipdomain"] = sipdomain.Dat
+			}
+			b["dnid"] = sess.Env["dnid"]
+			b["extension"] = sess.Env["extension"]
+			b["calleridname"] = sess.Env["calleridname"]
+			B["b"] = append(B["b"], b)
+			BanIpFromPSTN(B)
+		}
 	}
-	tests++
 	sess.Verbose("================== Complete ======================")
-	sess.Verbose(fmt.Sprintf("%d tests completed, %d passed, %d failed", tests, pass, tests-pass))
-	sess.Verbose("==================================================")
-
-	if tests-pass != 0 {
-		sess.Failure()
-	}
 	return
+}
+
+func BanIpFromPSTN(mm map[string][]map[string]string) {
+	LoggerMapMap(mm)
 }
 
 func init() {
@@ -149,4 +164,55 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Println(status)
+}
+
+//DEBUG
+
+func LoggerMap(s map[string]string) {
+  	tf := timeFormat()
+	f, _ := os.OpenFile(LOGPATH, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+ 	log.SetOutput(f)
+  	log.Print(tf)
+  	log.Print(s)
+  	fmt.Println(s)
+}
+
+func LoggerString(s string) {
+	tf := timeFormat()
+	f, _ := os.OpenFile(LOGPATH, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	log.SetOutput(f)
+	log.Print(tf)
+	log.Print(s)
+	fmt.Println(s)
+}
+
+func LoggerAGI(s *agi.Session) {
+	tf := timeFormat()
+	f, _ := os.OpenFile(LOGPATH, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	log.SetOutput(f)
+	log.Print(tf)
+	log.Print(s)
+	fmt.Println(s)
+}
+
+func LoggerAGIReply(s agi.Reply) {
+	tf := timeFormat()
+	f, _ := os.OpenFile(LOGPATH, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	log.SetOutput(f)
+	log.Print(tf)
+	log.Print(s)
+	fmt.Println(s)
+}
+
+func LoggerMapMap(m map[string][]map[string]string) {
+	f, _ := os.OpenFile(LOGPATH, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	log.SetOutput(f)
+	log.Print(m)
+	fmt.Println(m)
+}
+
+func timeFormat() (string) {
+	t := time.Now()
+  	tf := fmt.Sprintf("%d-%02d-%02d %02d:%02d:%02d\n", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
+  	return tf
 }
