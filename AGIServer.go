@@ -11,6 +11,7 @@ import (
 	"github.com/takama/daemon"
 	"github.com/zaf/agi"
 	"time"
+	"regexp"
 )
 
 const (
@@ -117,33 +118,58 @@ func agiSess(sess *agi.Session) {
 	startvar, err := sess.GetVariable("STARTVAR")
 	if err == nil {
 		if startvar.Dat == "block" {
-			var B = make(map[string][]map[string]string)
 			var b = make(map[string]string)
 			useragent, err := sess.GetVariable("CHANNEL(useragent)")
-			if err != nil {
+			if err == nil {
 				b["useragent"] = useragent.Dat
 			}
 			sipuri, err := sess.GetVariable("SIPURI")
-			if err != nil {
+			if err == nil {
 				b["sipuri"] = sipuri.Dat
 			}
 			sipdomain, err := sess.GetVariable("SIPDOMAIN")
-			if err != nil {
+			if err == nil {
 				b["sipdomain"] = sipdomain.Dat
 			}
 			b["dnid"] = sess.Env["dnid"]
 			b["extension"] = sess.Env["extension"]
 			b["calleridname"] = sess.Env["calleridname"]
-			B["b"] = append(B["b"], b)
-			BanIpFromPSTN(B)
+			BanIpFromPSTN(b)
 		}
 	}
 	sess.Verbose("================== Complete ======================")
 	return
 }
 
-func BanIpFromPSTN(mm map[string][]map[string]string) {
-	LoggerMapMap(mm)
+func BanIpFromPSTN(mm map[string]string) {
+	LoggerMap(mm)
+	rex, err := regexp.Compile(`^sip:(\S+)\@(\S+)\:(\S+)$`)
+	res := rex.FindStringSubmatch(mm["sipuri"])
+	for v, k := range res {
+		kk := string(k)
+		vv := string(v)
+		LoggerString(kk + " - " + vv)
+	}
+	rex1, err := regexp.Compile(`^sip:(\d+)\.(\d+)\.(\d+)\.(\d+)$`)
+	res1 := rex1.FindStringSubmatch(mm["sipuri"])
+	for v1, k1 := range res1 {
+		kk1 := string(k1)
+		vv1 := string(v1)
+		LoggerString(kk1 + " - " + vv1)
+	}
+	rex2, err := regexp.Compile(`^sip:(\S+)@(\d+)\.(\d+)\.(\d+)\.(\d+)$`)
+	res2 := rex2.FindStringSubmatch(mm["sipuri"])
+	for v2, k2 := range res2 {
+		kk2 := string(k2)
+		vv2 := string(v2)
+		LoggerString(kk2 + " - " + vv2)
+	}
+
+
+	if err != nil {
+
+	}
+
 }
 
 func init() {
