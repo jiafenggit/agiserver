@@ -143,31 +143,35 @@ func agiSess(sess *agi.Session) {
 
 func BanIpFromPSTN(mm map[string]string) {
 	LoggerMap(mm)
-	rex, err := regexp.Compile(`^sip:(\S+)\@(\S+)\:(\S+)$`)
+	var BAN = make(map[string]string)
+	rex, err := regexp.Compile(`^sip:(\S+)\@(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\:(\S+)$`)
 	res := rex.FindStringSubmatch(mm["sipuri"])
-	for v, k := range res {
-		kk := string(k)
-		vv := string(v)
-		LoggerString(kk + " - " + vv)
-	}
-	rex1, err := regexp.Compile(`^sip:(\d+)\.(\d+)\.(\d+)\.(\d+)$`)
+	BAN["num"] = res[1]
+	BAN["ip"] = res[2]
+	BAN["port"] = res[3]
+	LoggerString("1 " + res[1])
+	LoggerString("2 " + res[2])
+	LoggerString("3 " + res[3])
+
+
+	rex1, err := regexp.Compile(`^sip:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$`)
 	res1 := rex1.FindStringSubmatch(mm["sipuri"])
-	for v1, k1 := range res1 {
-		kk1 := string(k1)
-		vv1 := string(v1)
-		LoggerString(kk1 + " - " + vv1)
-	}
-	rex2, err := regexp.Compile(`^sip:(\S+)\@(\d+)\.(\d+)\.(\d+)\.(\d+)$`)
+	BAN["ip"] = res1[1]
+	LoggerString("1 " + res1[1])
+
+
+	rex2, err := regexp.Compile(`^sip:(\S+)\@(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$`)
 	res2 := rex2.FindStringSubmatch(mm["sipuri"])
-	for v2, k2 := range res2 {
-		kk2 := string(k2)
-		vv2 := string(v2)
-		LoggerString(kk2 + " - " + vv2)
-	}
+	BAN["num"] = res2[1]
+	BAN["ip"] = res2[2]
+	LoggerString("1 " + res2[1])
+	LoggerString("2 " + res2[2])
 
 
+/*
+*/
 	if err != nil {
-
+		LoggerString("ERR")
 	}
 
 }
