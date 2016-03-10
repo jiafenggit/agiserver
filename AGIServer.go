@@ -198,6 +198,7 @@ func BanIpFromPSTN(mm map[string]string) {
 
 //test
 func checkIP(ipip string) {
+	NotifyTG("Phrickers Attack from " + ipip)
 	cip := net.ParseIP(ipip)
 	for _, iprange := range ALLOW {
 		ip, ipnet, err := net.ParseCIDR(iprange)
@@ -207,7 +208,6 @@ func checkIP(ipip string) {
 		for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
 			if ip.String() == cip.String() {
 				LoggerString("IP FROM ALLOW NETWORK " + ip.String())
-				NotifyTG("Phrickers Attack from " + ip.String())
 				return
 			}
 		}
