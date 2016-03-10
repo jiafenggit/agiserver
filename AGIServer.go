@@ -12,6 +12,7 @@ import (
 	"github.com/zaf/agi"
 	"time"
 	"regexp"
+	"encoding/json"
 )
 
 const (
@@ -21,8 +22,21 @@ const (
 	port 		= "4573"
 )
 
-var LOGPATH = "/var/log/asterisk/AGISERVER_log"
-var stdlog, errlog *log.Logger
+var (
+	LOGPATH = "/var/log/asterisk/AGISERVER_log"
+	ALLOW []string //ALLOW NETWORKS
+	DENY []string //DENY NETWORKS
+	stdlog, errlog *log.Logger
+)
+
+type Config struct {
+	Network Network
+}
+
+type Network struct {
+	Allow []string
+	Deny []string
+}
 
 type Service struct {
 	daemon.Daemon
@@ -146,30 +160,28 @@ func BanIpFromPSTN(mm map[string]string) {
 	var BAN = make(map[string]string)
 	rex, err := regexp.Compile(`^sip:(\S+)\@(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\:(\S+)$`)
 	res := rex.FindStringSubmatch(mm["sipuri"])
-	BAN["num"] = res[1]
-	BAN["ip"] = res[2]
-	BAN["port"] = res[3]
-	LoggerString("1 " + res[1])
-	LoggerString("2 " + res[2])
-	LoggerString("3 " + res[3])
-
+	if res {
+		BAN["num"] = res[1]
+		BAN["ip"] = res[2]
+		BAN["port"] = res[3]
+	}
 
 	rex1, err := regexp.Compile(`^sip:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$`)
 	res1 := rex1.FindStringSubmatch(mm["sipuri"])
-	BAN["ip"] = res1[1]
-	LoggerString("1 " + res1[1])
-
+	if res1 {
+		BAN["num"] = nil
+		BAN["ip"] = res1[1]
+		BAN["port"] = nil
+	}
 
 	rex2, err := regexp.Compile(`^sip:(\S+)\@(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$`)
 	res2 := rex2.FindStringSubmatch(mm["sipuri"])
-	BAN["num"] = res2[1]
-	BAN["ip"] = res2[2]
-	LoggerString("1 " + res2[1])
-	LoggerString("2 " + res2[2])
-
-
-/*
-*/
+	if res2 {
+		BAN["num"] = res2[1]
+		BAN["ip"] = res2[2]
+		BAN["port"] = nil
+	}
+	LoggerMap(BAN)
 	if err != nil {
 		LoggerString("ERR")
 	}
@@ -177,6 +189,18 @@ func BanIpFromPSTN(mm map[string]string) {
 }
 
 func init() {
+	file, e1 := os.Open("/etc/asterisk/asterisk_config.json")
+	if e1 != nil {
+		fmt.Println("Error: ", e1)
+	}
+	decoder := json.NewDecoder(file)
+	conf := Config{}
+	err := decoder.Decode(&conf)
+	if err != nil {
+		fmt.Println("Error: ", err)
+	}
+	ALLOW = conf.Network.Allow
+	DENY = conf.Network.Deny
 	stdlog = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	errlog = log.New(os.Stderr, "", log.Ldate|log.Ltime)
 }
