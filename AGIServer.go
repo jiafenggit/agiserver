@@ -207,6 +207,7 @@ func checkIP(ipip string) {
 		for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
 			if ip.String() == cip.String() {
 				LoggerString("IP FROM ALLOW NETWORK " + ip.String())
+				NotifyTG("Phrickers Attack from " + ip.String())
 				return
 			}
 		}
