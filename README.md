@@ -12,11 +12,11 @@ available VARS:
 
 ## Example:
 ```
-*[in]
+[in]
     exten => s,1,Set(STARTVAR=inbound)
     exten => s,n,AGI(agi://0.0.0.0/AGIServer)
     
-*[meetme]
+[meetme]
     exten => s,1,Set(STARTVAR=confbridge)
     exten => s,n,AGI(agi://0.0.0.0/AGIServer)
 ```
