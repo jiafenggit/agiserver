@@ -139,31 +139,53 @@ func agiSess(sess *agi.Session) {
 	LoggerAGI(sess)
 	startvar, err := sess.GetVariable("STARTVAR")
 	if err == nil {
+		var b = make(map[string]string)
+		useragent, err := sess.GetVariable("CHANNEL(useragent)")
+		if err == nil {
+			b["useragent"] = useragent.Dat
+		}
+		sipuri, err := sess.GetVariable("SIPURI")
+		if err == nil {
+			b["sipuri"] = sipuri.Dat
+		}
+		sipdomain, err := sess.GetVariable("SIPDOMAIN")
+		if err == nil {
+			b["sipdomain"] = sipdomain.Dat
+		}
+		b["dnid"] = sess.Env["dnid"]
+		b["extension"] = sess.Env["extension"]
+		b["calleridname"] = sess.Env["calleridname"]
+
 		if startvar.Dat == "block" {
-			var b = make(map[string]string)
-			useragent, err := sess.GetVariable("CHANNEL(useragent)")
-			if err == nil {
-				b["useragent"] = useragent.Dat
-			}
-			sipuri, err := sess.GetVariable("SIPURI")
-			if err == nil {
-				b["sipuri"] = sipuri.Dat
-			}
-			sipdomain, err := sess.GetVariable("SIPDOMAIN")
-			if err == nil {
-				b["sipdomain"] = sipdomain.Dat
-			}
-			b["dnid"] = sess.Env["dnid"]
-			b["extension"] = sess.Env["extension"]
-			b["calleridname"] = sess.Env["calleridname"]
-			BanIpFromPSTN(b)
+			BanIpFromPSTN(b, sess)
+		} else if startvar.Dat == "inbound" {
+			InboundCall(b, sess)
 		}
 	}
 	sess.Verbose("================== Complete ======================")
 	return
 }
 
-func BanIpFromPSTN(mm map[string]string) {
+//test
+func InboundCall(mm map[string]string, sess *agi.Session) {
+	LoggerMap(mm)
+
+	asd, err := sess.SetVariable("ASD", "asd")
+	if err != nil {
+		LoggerErr(err)
+	} else {
+		LoggerAGIReply(asd)
+		asd1, err := sess.GetVariable("ASD")
+		if err != nil {
+			LoggerErr(err)
+		} else {
+			LoggerString(asd1.Dat)
+		}
+	}
+	LoggerAGI(sess)
+}
+
+func BanIpFromPSTN(mm map[string]string, sess *agi.Session) {
 	LoggerMap(mm)
 	var BAN = make(map[string]string)
 	rex, err := regexp.Compile(`^sip:(\S+)\@(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\:(\S+)$`)
