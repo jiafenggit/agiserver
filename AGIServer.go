@@ -136,7 +136,7 @@ func spawnAgi(c net.Conn) {
 
 func agiSess(sess *agi.Session) {
 	var err error
-	LoggerAGI(sess)
+//	LoggerAGI(sess)
 	startvar, err := sess.GetVariable("STARTVAR")
 	if err == nil {
 		var b = make(map[string]string)
@@ -159,30 +159,53 @@ func agiSess(sess *agi.Session) {
 		if startvar.Dat == "block" {
 			BanIpFromPSTN(b, sess)
 		} else if startvar.Dat == "inbound" {
-			InboundCall(b, sess)
+			InboundCall(sess)
 		}
 	}
 	sess.Verbose("================== Complete ======================")
+	sess.Verbose("STARTVAR IS " + startvar.Dat)
 	return
 }
 
 //test
-func InboundCall(mm map[string]string, sess *agi.Session) {
-	LoggerMap(mm)
-
-	asd, err := sess.SetVariable("ASD", "asd")
-	if err != nil {
-		LoggerErr(err)
-	} else {
-		LoggerAGIReply(asd)
-		asd1, err := sess.GetVariable("ASD")
+func InboundCall(sess *agi.Session) {
+	LoggerString("INCOMING NUM    " + sess.Env["callerid"])
+	rex, err := regexp.Compile(`^[7|8](\d{10})$`)
+	res := rex.FindStringSubmatch(sess.Env["callerid"])
+	if res != nil {
+		LoggerString("RES NOT NIL " + sess.Env["callerid"])
+		_, err := sess.SetVariable("CALLERID(num)", res[1])
 		if err != nil {
 			LoggerErr(err)
-		} else {
-			LoggerString(asd1.Dat)
+		}
+		_, err = sess.SetVariable("CALLERID(name)", res[1])
+		if err != nil {
+			LoggerErr(err)
+		}
+	} else {
+		LoggerString("NUM NOT CHANGED " + sess.Env["callerid"])
+	}
+	if err != nil {
+		LoggerErr(err)
+	}
+	rex2, err := regexp.Compile(`^([a|A]nonymous|unknown)$`)
+	res2 := rex2.FindStringSubmatch(sess.Env["calleridname"])
+	if res2 != nil {
+		LoggerString("RES2 " + res2[1])
+		_, err := sess.SetVariable("CALLERID(name)", "0")
+		if err != nil {
+			LoggerErr(err)
 		}
 	}
-	LoggerAGI(sess)
+	rex3, err := regexp.Compile(`^([a|A]nonymous|unknown)$`)
+	res3 := rex3.FindStringSubmatch(sess.Env["callerid"])
+	if res3 != nil {
+		LoggerString("RES3 " + res3[1])
+		_, err := sess.SetVariable("CALLERID(num)", "0")
+		if err != nil {
+			LoggerErr(err)
+		}
+	}
 }
 
 func BanIpFromPSTN(mm map[string]string, sess *agi.Session) {
