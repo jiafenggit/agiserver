@@ -160,6 +160,8 @@ func agiSess(sess *agi.Session) {
 			BanIpFromPSTN(b, sess)
 		} else if startvar.Dat == "inbound" {
 			InboundCall(sess)
+		} else if startvar.Dat == "confbridge" {
+
 		}
 	}
 	sess.Verbose("================== Complete ======================")
@@ -177,6 +179,8 @@ func InboundCall(sess *agi.Session) {
 		_, err := sess.SetVariable("CALLERID(num)", res[1])
 		if err != nil {
 			LoggerErr(err)
+		} else {
+			LoggerString("NUM CHANGED TO  " + res[1])
 		}
 		_, err = sess.SetVariable("CALLERID(name)", res[1])
 		if err != nil {
@@ -195,6 +199,8 @@ func InboundCall(sess *agi.Session) {
 		_, err := sess.SetVariable("CALLERID(name)", "0")
 		if err != nil {
 			LoggerErr(err)
+		} else {
+			LoggerString("NAME CHANGED TO 0")
 		}
 	}
 	rex3, err := regexp.Compile(`^([a|A]nonymous|unknown)$`)
@@ -204,8 +210,11 @@ func InboundCall(sess *agi.Session) {
 		_, err := sess.SetVariable("CALLERID(num)", "0")
 		if err != nil {
 			LoggerErr(err)
+		} else {
+			LoggerString("NUM CHANGED TO 0")
 		}
 	}
+
 }
 
 func BanIpFromPSTN(mm map[string]string, sess *agi.Session) {
