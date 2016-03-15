@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"github.com/sdidyk/mtproto"
 	"strconv"
+	"github.com/martinolsen/go-whois"
 )
 
 const (
@@ -161,12 +162,16 @@ func agiSess(sess *agi.Session) {
 		} else if startvar.Dat == "inbound" {
 			InboundCall(sess)
 		} else if startvar.Dat == "confbridge" {
-
+			ConfBridge(sess)
 		}
 	}
 	sess.Verbose("================== Complete ======================")
 	sess.Verbose("STARTVAR IS " + startvar.Dat)
 	return
+}
+
+func ConfBridge(sess *agi.Session) {
+
 }
 
 //test
@@ -187,7 +192,7 @@ func InboundCall(sess *agi.Session) {
 			LoggerErr(err)
 		}
 	} else {
-		LoggerString("NUM NOT CHANGED " + sess.Env["callerid"])
+//		LoggerString("NUM NOT CHANGED " + sess.Env["callerid"])
 	}
 	if err != nil {
 		LoggerErr(err)
@@ -252,7 +257,8 @@ func BanIpFromPSTN(mm map[string]string, sess *agi.Session) {
 
 //test
 func checkIP(ipip string) {
-	NotifyTG("Phrickers Attack from " + ipip)
+//	NotifyTG("Phrickers Attack from " + ipip)
+	anet := false;
 	cip := net.ParseIP(ipip)
 	for _, iprange := range ALLOW {
 		ip, ipnet, err := net.ParseCIDR(iprange)
@@ -262,10 +268,46 @@ func checkIP(ipip string) {
 		for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
 			if ip.String() == cip.String() {
 				LoggerString("IP FROM ALLOW NETWORK " + ip.String())
+				anet = true
 				return
 			}
 		}
 	}
+	if !anet {
+		whoisIP(ipip)
+	}
+}
+
+//test
+func whoisIP(ipip string) {
+	w, err := whois.Lookup(ipip)
+	var country string
+	var inetnum string
+	var route string
+	if err != nil {
+		LoggerErr(err)
+	} else {
+
+		if len(w.Get("country")) != 0 {
+			LoggerString(w.Get("country"))
+		} else {
+			country = "Country NOT DEFINED"
+			LoggerString("Country NOT DEFINED")
+		}
+		if len(w.Get("inetnum")) != 0 {
+			LoggerString(w.Get("inetnum"))
+		} else {
+			inetnum = "Inetnum NOT DEFINED"
+			LoggerString("Inetnum NOT DEFINED")
+		}
+		if len(w.Get("route")) != 0 {
+			LoggerString(w.Get("route"))
+		} else {
+			route = "Route NOT DEFINED"
+			LoggerString("Route NOT DEFINED")
+		}
+	}
+	NotifyTG("Phrickers Attack " + ipip + " " + country + " " + inetnum + " " + route)
 }
 
 //test
