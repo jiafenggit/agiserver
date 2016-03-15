@@ -279,6 +279,16 @@ func checkIP(ipip string) {
 }
 
 //test
+func inc(ip net.IP) {
+	for j := len(ip)-1; j>=0; j-- {
+		ip[j]++
+		if ip[j] > 0 {
+			break
+		}
+	}
+}
+
+//test
 func whoisIP(ipip string) {
 	w, err := whois.Lookup(ipip)
 	var country string
@@ -287,37 +297,26 @@ func whoisIP(ipip string) {
 	if err != nil {
 		LoggerErr(err)
 	} else {
-
 		if len(w.Get("country")) != 0 {
 			LoggerString(w.Get("country"))
 		} else {
 			country = "Country NOT DEFINED"
-			LoggerString("Country NOT DEFINED")
+			LoggerString(country)
 		}
 		if len(w.Get("inetnum")) != 0 {
 			LoggerString(w.Get("inetnum"))
 		} else {
 			inetnum = "Inetnum NOT DEFINED"
-			LoggerString("Inetnum NOT DEFINED")
+			LoggerString(inetnum)
 		}
 		if len(w.Get("route")) != 0 {
 			LoggerString(w.Get("route"))
 		} else {
 			route = "Route NOT DEFINED"
-			LoggerString("Route NOT DEFINED")
+			LoggerString(route)
 		}
 	}
-	NotifyTG("Phrickers Attack " + ipip + " " + country + " " + inetnum + " " + route)
-}
-
-//test
-func inc(ip net.IP) {
-	for j := len(ip)-1; j>=0; j-- {
-		ip[j]++
-		if ip[j] > 0 {
-			break
-		}
-	}
+	NotifyTG("Phrickers Attack from " + ipip + " " + country + " " + inetnum + " " + route)
 }
 
 func NotifyTG(tg_msg string) {
