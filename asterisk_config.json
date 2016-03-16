@@ -8,6 +8,10 @@
   },
   "confbridge" : {
     "df" : "conf_inv0",
-    "context" : "conf-nway"
+    "context" : "conf-nway",
+    "adminmenu" : "admin_menu",
+    "usermenu" : "user_menu",
+    "addmember" : "confbridge_addmembers",
+    "conferences" : "conference"
   }
 }

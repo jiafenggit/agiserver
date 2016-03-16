@@ -32,6 +32,9 @@ var (
 	DENY []string //DENY NETWORKS
 	CONFBRIDGE_FEATURES string //CONFBRIDGE DYNAMIC FEATURES
 	CONFBRIDGE_CONTEXT string //CONFBRIDGE CONTEXT
+	CONFBRIDGE_ADD_CONTEXT string //CONFBRIDGE ADD USERS CONTEXT
+	CONFBRIDGE_CONFS string //CONFBRIDGE CONTEXT FOR OTHER CHANNELS
+	AMENU, UMENU string
 	stdlog, errlog *log.Logger
 	TG []string
 )
@@ -54,6 +57,10 @@ type Tg struct {
 type Confbridge struct {
 	Df string
 	Context string
+	AdminMenu string
+	UserMenu string
+	AddMember string
+	Conferences string
 }
 
 type Service struct {
@@ -174,11 +181,53 @@ func agiSess(sess *agi.Session) {
 			ConfBridgeAccess(sess)
 		} else if startvar.Dat == "confbridge_channelredirect" {
 			ConfBridgeChannelRedirect(sess)
+		} else if startvar.Dat == "confbridge_addmembers" {
+			ConfBridgeAddMembers(sess)
+		} else if startvar.Dat == "confbridge_confs" {
+			ConfBridgeConfs(sess)
 		}
 	}
 	sess.Verbose("================== Complete ======================")
 	sess.Verbose("STARTVAR IS " + startvar.Dat)
 	return
+}
+
+//test
+func ConfBridgeConfs(sess *agi.Session) {
+	_, err := sess.Exec("DumpChan", "255")
+	if err != nil {
+		LoggerErr(err)
+	}
+	_, err = sess.SetVariable("__CONFNO", sess.Env["extension"])
+	if err != nil {
+		LoggerErr(err)
+	}
+	_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + UMENU)
+	if err != nil {
+		LoggerErr(err)
+	}
+}
+
+//test
+func ConfBridgeAddMembers(sess *agi.Session) {
+	_, err := sess.Exec("Read", "DST,beep,maxdigits,,2,12")
+	if err != nil {
+		LoggerErr(err)
+	}
+	dst, err := sess.GetVariable("DST")
+	if err != nil {
+		LoggerErr(err)
+	} else {
+		callerid := sess.Env["callerid"]
+		_, err := sess.Exec("DumpChan", "255")
+		if err != nil {
+			LoggerErr(err)
+		}
+		_, err = sess.Exec("Originate", "SIP/" + dst.Dat + ",exten," + CONFBRIDGE_CONFS + "," + callerid + ",1")
+		if err != nil {
+			LoggerErr(err)
+		}
+	}
 }
 
 //test
@@ -191,6 +240,7 @@ func ConfBridgeChannelRedirect(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	}
+
 	_, err = sess.Exec("ChannelRedirect", sess.Env["channel"] + "," + CONFBRIDGE_CONTEXT + "," + confno.Dat + ",1")
 	if err != nil {
 		LoggerErr(err)
@@ -212,11 +262,11 @@ func ConfBridgeAccess(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	}
-	conf_menu := "user_menu"
 	if sess.Env["extension"] == sess.Env["callerid"] {
-		conf_menu = "admin_menu"
+		_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + AMENU)
+	} else {
+		_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + UMENU)
 	}
-	_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + conf_menu)
 	if err != nil {
 		LoggerErr(err)
 	}
@@ -306,7 +356,7 @@ func BanIpFromPSTN(mm map[string]string, sess *agi.Session) {
 //test
 func checkIP(ipip string) {
 //	NotifyTG("Phrickers Attack from " + ipip)
-	anet := false;
+//	anet := false;
 	cip := net.ParseIP(ipip)
 	for _, iprange := range ALLOW {
 		ip, ipnet, err := net.ParseCIDR(iprange)
@@ -316,14 +366,14 @@ func checkIP(ipip string) {
 		for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
 			if ip.String() == cip.String() {
 				LoggerString("IP FROM ALLOW NETWORK " + ip.String())
-				anet = true
+//				anet = true
 				return
 			}
 		}
 	}
-	if anet == false {
+//	if anet == false {
 		whoisIP(ipip)
-	}
+//	}
 }
 
 //test
@@ -341,7 +391,7 @@ func whoisIP(ipip string) {
 	w, err := whois.Lookup(ipip)
 	country := "Country NOT DEFINED"
 	inetnum := "Inetnum NOT DEFINED"
-	route := "Route NOT DEFINED"
+	route :=   "Route NOT DEFINED"
 	if err != nil {
 		LoggerErr(err)
 	} else {
@@ -407,7 +457,11 @@ func init() {
 	DENY = conf.Network.Deny
 	CONFBRIDGE_FEATURES = conf.Confbridge.Df
 	CONFBRIDGE_CONTEXT = conf.Confbridge.Context
+	CONFBRIDGE_ADD_CONTEXT = conf.Confbridge.AddMember
+	CONFBRIDGE_CONFS = conf.Confbridge.Conferences
 	TG = conf.Tg.Rcp
+	AMENU = conf.Confbridge.AdminMenu
+	UMENU = conf.Confbridge.UserMenu
 	stdlog = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	errlog = log.New(os.Stderr, "", log.Ldate|log.Ltime)
 	NotifyTG("Start/Restart " + _DAEMON_NAME + " " + _DAEMON_DESC)
