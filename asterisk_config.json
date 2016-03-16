@@ -5,5 +5,9 @@
   },
   "tg" : {
     "Rcp" : ["00000000"]
+  },
+  "confbridge" : {
+    "df" : "conf_inv0",
+    "context" : "conf-nway"
   }
 }

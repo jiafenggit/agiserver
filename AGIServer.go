@@ -9,7 +9,8 @@ import (
 	"syscall"
 	"bufio"
 	"github.com/takama/daemon"
-	"github.com/zaf/agi"
+//	"github.com/zaf/agi"
+	"github.com/yosh0/agi"
 	"time"
 	"regexp"
 	"encoding/json"
@@ -29,6 +30,8 @@ var (
 	LOGPATH = "/var/log/asterisk/AGISERVER_log"
 	ALLOW []string //ALLOW NETWORKS
 	DENY []string //DENY NETWORKS
+	CONFBRIDGE_FEATURES string //CONFBRIDGE DYNAMIC FEATURES
+	CONFBRIDGE_CONTEXT string //CONFBRIDGE CONTEXT
 	stdlog, errlog *log.Logger
 	TG []string
 )
@@ -36,6 +39,7 @@ var (
 type Config struct {
 	Network Network
 	Tg Tg
+	Confbridge Confbridge
 }
 
 type Network struct {
@@ -45,6 +49,11 @@ type Network struct {
 
 type Tg struct {
 	Rcp []string
+}
+
+type Confbridge struct {
+	Df string
+	Context string
 }
 
 type Service struct {
@@ -161,8 +170,10 @@ func agiSess(sess *agi.Session) {
 			BanIpFromPSTN(b, sess)
 		} else if startvar.Dat == "inbound" {
 			InboundCall(sess)
-		} else if startvar.Dat == "confbridge" {
-			ConfBridge(sess)
+		} else if startvar.Dat == "confbridge_access" {
+			ConfBridgeAccess(sess)
+		} else if startvar.Dat == "confbridge_channelredirect" {
+			ConfBridgeChannelRedirect(sess)
 		}
 	}
 	sess.Verbose("================== Complete ======================")
@@ -170,13 +181,50 @@ func agiSess(sess *agi.Session) {
 	return
 }
 
-func ConfBridge(sess *agi.Session) {
+//test
+func ConfBridgeChannelRedirect(sess *agi.Session) {
+	confno, err := sess.GetVariable("CONFNO")
+	if err != nil {
+		LoggerErr(err)
+	}
+	bridgepeer, err := sess.GetVariable("BRIDGEPEER")
+	if err != nil {
+		LoggerErr(err)
+	}
+	_, err = sess.Exec("ChannelRedirect", sess.Env["channel"] + "," + CONFBRIDGE_CONTEXT + "," + confno.Dat + ",1")
+	if err != nil {
+		LoggerErr(err)
+	}
+	_, err = sess.Exec("ChannelRedirect", bridgepeer.Dat + "," + CONFBRIDGE_CONTEXT + "," + confno.Dat + ",1")
+	if err != nil {
+		LoggerErr(err)
+	}
+}
 
+//test
+func ConfBridgeAccess(sess *agi.Session) {
+	sess.Answer()
+	_, err := sess.SetVariable("__CONFNO", sess.Env["extension"])
+	if err != nil {
+		LoggerErr(err)
+	}
+	_, err = sess.SetVariable("__DYNAMIC_FEATURES", CONFBRIDGE_FEATURES)
+	if err != nil {
+		LoggerErr(err)
+	}
+	conf_menu := "user_menu"
+	if sess.Env["extension"] == sess.Env["callerid"] {
+		conf_menu = "admin_menu"
+	}
+	_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + conf_menu)
+	if err != nil {
+		LoggerErr(err)
+	}
 }
 
 //test
 func InboundCall(sess *agi.Session) {
-	LoggerString("INCOMING NUM    " + sess.Env["callerid"])
+//	LoggerString("INCOMING NUM    " + sess.Env["callerid"])
 	rex, err := regexp.Compile(`^[7|8](\d{10})$`)
 	res := rex.FindStringSubmatch(sess.Env["callerid"])
 	if res != nil {
@@ -273,7 +321,7 @@ func checkIP(ipip string) {
 			}
 		}
 	}
-	if !anet {
+	if anet == false {
 		whoisIP(ipip)
 	}
 }
@@ -291,28 +339,28 @@ func inc(ip net.IP) {
 //test
 func whoisIP(ipip string) {
 	w, err := whois.Lookup(ipip)
-	var country string
-	var inetnum string
-	var route string
+	country := "Country NOT DEFINED"
+	inetnum := "Inetnum NOT DEFINED"
+	route := "Route NOT DEFINED"
 	if err != nil {
 		LoggerErr(err)
 	} else {
 		if len(w.Get("country")) != 0 {
 			LoggerString(w.Get("country"))
+			country = w.Get("country")
 		} else {
-			country = "Country NOT DEFINED"
 			LoggerString(country)
 		}
 		if len(w.Get("inetnum")) != 0 {
 			LoggerString(w.Get("inetnum"))
+			inetnum = w.Get("inetnum")
 		} else {
-			inetnum = "Inetnum NOT DEFINED"
 			LoggerString(inetnum)
 		}
 		if len(w.Get("route")) != 0 {
 			LoggerString(w.Get("route"))
+			route = w.Get("route")
 		} else {
-			route = "Route NOT DEFINED"
 			LoggerString(route)
 		}
 	}
@@ -357,6 +405,8 @@ func init() {
 	}
 	ALLOW = conf.Network.Allow
 	DENY = conf.Network.Deny
+	CONFBRIDGE_FEATURES = conf.Confbridge.Df
+	CONFBRIDGE_CONTEXT = conf.Confbridge.Context
 	TG = conf.Tg.Rcp
 	stdlog = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	errlog = log.New(os.Stderr, "", log.Ldate|log.Ltime)
