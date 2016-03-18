@@ -12,6 +12,10 @@
     "adminmenu" : "admin_menu",
     "usermenu" : "user_menu",
     "addmember" : "confbridge_addmembers",
-    "conferences" : "conference"
+    "conferences" : "conference",
+    "playmemberadd" : "confbridge/confbridge_member_add",
+    "lengthinnernum" : "2",
+    "lengthouternum" : "15",
+    "outpeer" : "0000000"
   }
 }

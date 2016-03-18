@@ -24,6 +24,7 @@ const (
 	_DAEMON_DESC 	= "AGIServer"
 	ipaddr 		= "127.0.0.1"
 	port 		= "4573"
+	_LT		= "\r\n"
 )
 
 var (
@@ -34,6 +35,10 @@ var (
 	CONFBRIDGE_CONTEXT string //CONFBRIDGE CONTEXT
 	CONFBRIDGE_ADD_CONTEXT string //CONFBRIDGE ADD USERS CONTEXT
 	CONFBRIDGE_CONFS string //CONFBRIDGE CONTEXT FOR OTHER CHANNELS
+	CONFBRIDGE_MEMBER_ADD string // CONFBRIDGE ADD USERS SOUND
+	LEN_INNER_NUM string
+	LEN_OUTER_NUM string
+	OUTPEER string
 	AMENU, UMENU string
 	stdlog, errlog *log.Logger
 	TG []string
@@ -61,6 +66,10 @@ type Confbridge struct {
 	UserMenu string
 	AddMember string
 	Conferences string
+	PlayMemberAdd string
+	LengthInnerNum string
+	LengthOuterNum string
+	OutPeer string
 }
 
 type Service struct {
@@ -210,7 +219,7 @@ func ConfBridgeConfs(sess *agi.Session) {
 
 //test
 func ConfBridgeAddMembers(sess *agi.Session) {
-	_, err := sess.Exec("Read", "DST,beep,maxdigits,,2,12")
+	_, err := sess.Exec("Read", "DST," + CONFBRIDGE_MEMBER_ADD + ",maxdigits,,2,12")
 	if err != nil {
 		LoggerErr(err)
 	}
@@ -223,10 +232,19 @@ func ConfBridgeAddMembers(sess *agi.Session) {
 		if err != nil {
 			LoggerErr(err)
 		}
-		_, err = sess.Exec("Originate", "SIP/" + dst.Dat + ",exten," + CONFBRIDGE_CONFS + "," + callerid + ",1")
+		inner_num, err := strconv.Atoi(LEN_INNER_NUM)
+		outer_num, err := strconv.Atoi(LEN_OUTER_NUM)
+		if len(dst.Dat) == inner_num {
+			_, err = sess.Exec("Originate", "SIP/" + dst.Dat + ",exten," + CONFBRIDGE_CONFS + "," + callerid + ",1")
+		} else if len(dst.Dat) == outer_num {
+			_, err = sess.Exec("Originate", "SIP/" + dst.Dat + "@" + OUTPEER + ",exten," + CONFBRIDGE_CONFS + "," + callerid + ",1")
+		} else {
+			LoggerString("NUM LENGTH NOT VALID")
+		}
 		if err != nil {
 			LoggerErr(err)
 		}
+		sess.Hangup()
 	}
 }
 
@@ -355,7 +373,6 @@ func BanIpFromPSTN(mm map[string]string, sess *agi.Session) {
 
 //test
 func checkIP(ipip string) {
-//	NotifyTG("Phrickers Attack from " + ipip)
 //	anet := false;
 	cip := net.ParseIP(ipip)
 	for _, iprange := range ALLOW {
@@ -389,9 +406,10 @@ func inc(ip net.IP) {
 //test
 func whoisIP(ipip string) {
 	w, err := whois.Lookup(ipip)
-	country := "Country NOT DEFINED"
-	inetnum := "Inetnum NOT DEFINED"
-	route :=   "Route NOT DEFINED"
+	country := "NOT DEFINED"
+	inetnum := "NOT DEFINED"
+	route := "NOT DEFINED"
+	cidr := "NOT DEFINED"
 	if err != nil {
 		LoggerErr(err)
 	} else {
@@ -413,8 +431,14 @@ func whoisIP(ipip string) {
 		} else {
 			LoggerString(route)
 		}
+		if len(w.Get("cidr")) != 0 {
+			LoggerString(w.Get("cidr"))
+			cidr = w.Get("cidr")
+		} else {
+			LoggerString(cidr)
+		}
 	}
-	NotifyTG("Phrickers Attack from " + ipip + " " + country + " " + inetnum + " " + route)
+	NotifyTG("Phrickers Attack: " + ipip + _LT + "Country: " + country + _LT + "Inetnum: " + inetnum + _LT + "Route: " + route + _LT + "Cidr: " + cidr)
 }
 
 func NotifyTG(tg_msg string) {
@@ -459,12 +483,16 @@ func init() {
 	CONFBRIDGE_CONTEXT = conf.Confbridge.Context
 	CONFBRIDGE_ADD_CONTEXT = conf.Confbridge.AddMember
 	CONFBRIDGE_CONFS = conf.Confbridge.Conferences
+	CONFBRIDGE_MEMBER_ADD = conf.Confbridge.PlayMemberAdd
+	LEN_INNER_NUM = conf.Confbridge.LengthInnerNum
+	LEN_OUTER_NUM = conf.Confbridge.LengthOuterNum
+	OUTPEER = conf.Confbridge.OutPeer
 	TG = conf.Tg.Rcp
 	AMENU = conf.Confbridge.AdminMenu
 	UMENU = conf.Confbridge.UserMenu
 	stdlog = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	errlog = log.New(os.Stderr, "", log.Ldate|log.Ltime)
-	NotifyTG("Start/Restart " + _DAEMON_NAME + " " + _DAEMON_DESC)
+	NotifyTG("Start/Restart " + _LT + _DAEMON_NAME + _LT + _DAEMON_DESC)
 }
 
 func main() {
