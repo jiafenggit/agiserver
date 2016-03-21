@@ -1,21 +1,20 @@
 package main
 
 import (
+	"os"
 	"fmt"
 	"log"
 	"net"
-	"os"
-	"os/signal"
-	"syscall"
-	"bufio"
-	"github.com/takama/daemon"
-//	"github.com/zaf/agi"
-	"github.com/yosh0/agi"
 	"time"
+	"bufio"
 	"regexp"
-	"encoding/json"
-	"github.com/sdidyk/mtproto"
+	"syscall"
 	"strconv"
+	"os/signal"
+	"encoding/json"
+	"github.com/zaf/agi"
+	"github.com/takama/daemon"
+	"github.com/sdidyk/mtproto"
 	"github.com/martinolsen/go-whois"
 )
 
@@ -24,22 +23,20 @@ const (
 	_DAEMON_DESC 	= "AGIServer"
 	ipaddr 		= "127.0.0.1"
 	port 		= "4573"
-	_LT		= "\r\n"
+	_LT		= "\r\n" //"\x0D\x0A"
 )
 
 var (
 	LOGPATH = "/var/log/asterisk/AGISERVER_log"
-	ALLOW []string //ALLOW NETWORKS
-	DENY []string //DENY NETWORKS
+	ALLOW, DENY []string //ALLOW, DENY NETWORKS
 	CONFBRIDGE_FEATURES string //CONFBRIDGE DYNAMIC FEATURES
 	CONFBRIDGE_CONTEXT string //CONFBRIDGE CONTEXT
 	CONFBRIDGE_ADD_CONTEXT string //CONFBRIDGE ADD USERS CONTEXT
 	CONFBRIDGE_CONFS string //CONFBRIDGE CONTEXT FOR OTHER CHANNELS
 	CONFBRIDGE_MEMBER_ADD string // CONFBRIDGE ADD USERS SOUND
-	LEN_INNER_NUM string
-	LEN_OUTER_NUM string
+	LEN_INNER_NUM, LEN_OUTER_NUM string // NUMBERS LENGTH
 	OUTPEER string
-	AMENU, UMENU string
+	AMENU, UMENU string //CONFBRIDGE MENUS
 	stdlog, errlog *log.Logger
 	TG []string
 )
@@ -165,25 +162,8 @@ func agiSess(sess *agi.Session) {
 //	LoggerAGI(sess)
 	startvar, err := sess.GetVariable("STARTVAR")
 	if err == nil {
-		var b = make(map[string]string)
-		useragent, err := sess.GetVariable("CHANNEL(useragent)")
-		if err == nil {
-			b["useragent"] = useragent.Dat
-		}
-		sipuri, err := sess.GetVariable("SIPURI")
-		if err == nil {
-			b["sipuri"] = sipuri.Dat
-		}
-		sipdomain, err := sess.GetVariable("SIPDOMAIN")
-		if err == nil {
-			b["sipdomain"] = sipdomain.Dat
-		}
-		b["dnid"] = sess.Env["dnid"]
-		b["extension"] = sess.Env["extension"]
-		b["calleridname"] = sess.Env["calleridname"]
-
 		if startvar.Dat == "block" {
-			BanIpFromPSTN(b, sess)
+			BanIpFromPSTN(sess)
 		} else if startvar.Dat == "inbound" {
 			InboundCall(sess)
 		} else if startvar.Dat == "confbridge_access" {
@@ -237,14 +217,17 @@ func ConfBridgeAddMembers(sess *agi.Session) {
 		if len(dst.Dat) == inner_num {
 			_, err = sess.Exec("Originate", "SIP/" + dst.Dat + ",exten," + CONFBRIDGE_CONFS + "," + callerid + ",1")
 		} else if len(dst.Dat) == outer_num {
+			_, err := sess.SetVariable("CALLERID(num)", OUTPEER)
 			_, err = sess.Exec("Originate", "SIP/" + dst.Dat + "@" + OUTPEER + ",exten," + CONFBRIDGE_CONFS + "," + callerid + ",1")
+			if err != nil {
+				LoggerErr(err)
+			}
 		} else {
 			LoggerString("NUM LENGTH NOT VALID")
 		}
 		if err != nil {
 			LoggerErr(err)
 		}
-		sess.Hangup()
 	}
 }
 
@@ -281,7 +264,15 @@ func ConfBridgeAccess(sess *agi.Session) {
 		LoggerErr(err)
 	}
 	if sess.Env["extension"] == sess.Env["callerid"] {
-		_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + AMENU)
+		inner_num, err := strconv.Atoi(LEN_INNER_NUM)
+		if len(sess.Env["callerid"]) == inner_num {
+			_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + AMENU)
+		} else {
+			_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + UMENU)
+		}
+		if err != nil {
+			LoggerErr(err)
+		}
 	} else {
 		_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + UMENU)
 	}
@@ -304,7 +295,7 @@ func InboundCall(sess *agi.Session) {
 			LoggerString("NUM CHANGED TO  " + res[1])
 		}
 		_, err = sess.SetVariable("CALLERID(name)", res[1])
-		if err != nil {
+			if err != nil {
 			LoggerErr(err)
 		}
 	} else {
@@ -338,11 +329,22 @@ func InboundCall(sess *agi.Session) {
 
 }
 
-func BanIpFromPSTN(mm map[string]string, sess *agi.Session) {
-	LoggerMap(mm)
+func BanIpFromPSTN(sess *agi.Session) {
+	useragent, err := sess.GetVariable("CHANNEL(useragent)")
+	if err != nil {
+		LoggerErr(err)
+	} else {
+		LoggerString("UserAgent " + useragent.Dat)
+	}
+	sipuri, err := sess.GetVariable("SIPURI")
+	if err != nil {
+		LoggerErr(err)
+	} else {
+		LoggerString("SIPURI " + sipuri.Dat)
+	}
 	var BAN = make(map[string]string)
 	rex, err := regexp.Compile(`^sip:(\S+)\@(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\:(\S+)$`)
-	res := rex.FindStringSubmatch(mm["sipuri"])
+	res := rex.FindStringSubmatch(sipuri.Dat)
 	if res != nil {
 		BAN["num"] = res[1]
 		BAN["ip"] = res[2]
@@ -350,7 +352,7 @@ func BanIpFromPSTN(mm map[string]string, sess *agi.Session) {
 	}
 
 	rex1, err := regexp.Compile(`^sip:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$`)
-	res1 := rex1.FindStringSubmatch(mm["sipuri"])
+	res1 := rex1.FindStringSubmatch(sipuri.Dat)
 	if res1 != nil {
 		BAN["num"] = ""
 		BAN["ip"] = res1[1]
@@ -358,7 +360,7 @@ func BanIpFromPSTN(mm map[string]string, sess *agi.Session) {
 	}
 
 	rex2, err := regexp.Compile(`^sip:(\S+)\@(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$`)
-	res2 := rex2.FindStringSubmatch(mm["sipuri"])
+	res2 := rex2.FindStringSubmatch(sipuri.Dat)
 	if res2 != nil {
 		BAN["num"] = res2[1]
 		BAN["ip"] = res2[2]
@@ -405,11 +407,10 @@ func inc(ip net.IP) {
 
 //test
 func whoisIP(ipip string) {
-	w, err := whois.Lookup(ipip)
 	country := "NOT DEFINED"
 	inetnum := "NOT DEFINED"
 	route := "NOT DEFINED"
-	cidr := "NOT DEFINED"
+	w, err := whois.Lookup(ipip)
 	if err != nil {
 		LoggerErr(err)
 	} else {
@@ -428,18 +429,17 @@ func whoisIP(ipip string) {
 		if len(w.Get("route")) != 0 {
 			LoggerString(w.Get("route"))
 			route = w.Get("route")
-		} else {
-			LoggerString(route)
-		}
-		if len(w.Get("cidr")) != 0 {
+		} else if len(w.Get("cidr")) != 0 {
 			LoggerString(w.Get("cidr"))
-			cidr = w.Get("cidr")
+			route = w.Get("cidr")
 		} else {
-			LoggerString(cidr)
+			route = "NO ROUTE OR CIDR FIELD"
 		}
 	}
-	NotifyTG("Phrickers Attack: " + ipip + _LT + "Country: " + country + _LT + "Inetnum: " + inetnum + _LT + "Route: " + route + _LT + "Cidr: " + cidr)
+	NotifyTG("Phrickers Attack: " + ipip + _LT + "Country: " + country + _LT + "Inetnum: " + inetnum + _LT + "Route: " + route)
 }
+
+
 
 func NotifyTG(tg_msg string) {
 	LoggerString(tg_msg)
@@ -492,7 +492,7 @@ func init() {
 	UMENU = conf.Confbridge.UserMenu
 	stdlog = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	errlog = log.New(os.Stderr, "", log.Ldate|log.Ltime)
-	NotifyTG("Start/Restart " + _LT + _DAEMON_NAME + _LT + _DAEMON_DESC)
+	NotifyTG("Start/Restart " + _DAEMON_NAME + " " + _DAEMON_DESC)
 }
 
 func main() {
