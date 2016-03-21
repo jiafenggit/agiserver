@@ -436,7 +436,7 @@ func whoisIP(ipip string) {
 			route = "NO ROUTE OR CIDR FIELD"
 		}
 	}
-	NotifyTG("Phrickers Attack: " + ipip + _LT + "Country: " + country + _LT + "Inetnum: " + inetnum + _LT + "Route: " + route)
+	NotifyTG("Phreackers Attack: " + ipip + _LT + "Country: " + country + _LT + "Inetnum: " + inetnum + _LT + "Route: " + route)
 }
 
 
