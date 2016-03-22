@@ -181,23 +181,58 @@ func agiSess(sess *agi.Session) {
 	return
 }
 
-//test
-func ConfBridgeConfs(sess *agi.Session) {
-	_, err := sess.Exec("DumpChan", "255")
+//test 1
+func ConfBridgeChannelRedirect(sess *agi.Session) {
+	confno, err := sess.GetVariable("CONFNO")
 	if err != nil {
 		LoggerErr(err)
 	}
-	_, err = sess.SetVariable("__CONFNO", sess.Env["extension"])
+	bridgepeer, err := sess.GetVariable("BRIDGEPEER")
 	if err != nil {
 		LoggerErr(err)
 	}
-	_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + UMENU)
+	_, err = sess.Exec("ChannelRedirect", sess.Env["channel"] + "," + CONFBRIDGE_CONTEXT + "," + confno.Dat + ",1")
 	if err != nil {
 		LoggerErr(err)
 	}
+	_, err = sess.Exec("ChannelRedirect", bridgepeer.Dat + "," + CONFBRIDGE_CONTEXT + "," + confno.Dat + ",1")
+	if err != nil {
+		LoggerErr(err)
+	}
+	LoggerString("Try create Confbridge CONFNO " + confno + " Channel1 " + sess.Env["channel"] + "Channel2 " + bridgepeer.Dat)
 }
 
-//test
+//test 2
+func ConfBridgeAccess(sess *agi.Session) {
+	sess.Answer()
+	_, err := sess.SetVariable("__CONFNO", sess.Env["extension"])
+	if err != nil {
+		LoggerErr(err)
+	}
+	_, err = sess.SetVariable("__DYNAMIC_FEATURES", CONFBRIDGE_FEATURES)
+	if err != nil {
+		LoggerErr(err)
+	}
+	if sess.Env["extension"] == sess.Env["callerid"] {
+		inner_num, err := strconv.Atoi(LEN_INNER_NUM)
+		if len(sess.Env["callerid"]) == inner_num {
+			_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + AMENU)
+		} else {
+			_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + UMENU)
+		}
+		if err != nil {
+			LoggerErr(err)
+		}
+	} else {
+		_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + UMENU)
+	}
+	if err != nil {
+		LoggerErr(err)
+	}
+	LoggerString("Confbridge Admin " + sess.Env["extension"])
+}
+
+//test 3
 func ConfBridgeAddMembers(sess *agi.Session) {
 	_, err := sess.Exec("Read", "DST," + CONFBRIDGE_MEMBER_ADD + ",maxdigits,,2,12")
 	if err != nil {
@@ -229,56 +264,24 @@ func ConfBridgeAddMembers(sess *agi.Session) {
 			LoggerErr(err)
 		}
 	}
+	LoggerString("Confbridge Admin " + sess.Env["callerid"] + " try add " + dst.Dat)
 }
 
-//test
-func ConfBridgeChannelRedirect(sess *agi.Session) {
-	confno, err := sess.GetVariable("CONFNO")
+//test 4
+func ConfBridgeConfs(sess *agi.Session) {
+	_, err := sess.Exec("DumpChan", "255")
 	if err != nil {
 		LoggerErr(err)
 	}
-	bridgepeer, err := sess.GetVariable("BRIDGEPEER")
+	_, err = sess.SetVariable("__CONFNO", sess.Env["extension"])
 	if err != nil {
 		LoggerErr(err)
 	}
-
-	_, err = sess.Exec("ChannelRedirect", sess.Env["channel"] + "," + CONFBRIDGE_CONTEXT + "," + confno.Dat + ",1")
+	_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + UMENU)
 	if err != nil {
 		LoggerErr(err)
 	}
-	_, err = sess.Exec("ChannelRedirect", bridgepeer.Dat + "," + CONFBRIDGE_CONTEXT + "," + confno.Dat + ",1")
-	if err != nil {
-		LoggerErr(err)
-	}
-}
-
-//test
-func ConfBridgeAccess(sess *agi.Session) {
-	sess.Answer()
-	_, err := sess.SetVariable("__CONFNO", sess.Env["extension"])
-	if err != nil {
-		LoggerErr(err)
-	}
-	_, err = sess.SetVariable("__DYNAMIC_FEATURES", CONFBRIDGE_FEATURES)
-	if err != nil {
-		LoggerErr(err)
-	}
-	if sess.Env["extension"] == sess.Env["callerid"] {
-		inner_num, err := strconv.Atoi(LEN_INNER_NUM)
-		if len(sess.Env["callerid"]) == inner_num {
-			_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + AMENU)
-		} else {
-			_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + UMENU)
-		}
-		if err != nil {
-			LoggerErr(err)
-		}
-	} else {
-		_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + UMENU)
-	}
-	if err != nil {
-		LoggerErr(err)
-	}
+	LoggerString("Confbridge Admin add " + sess.Env["extension"])
 }
 
 //test
@@ -326,7 +329,6 @@ func InboundCall(sess *agi.Session) {
 			LoggerString("NUM CHANGED TO 0")
 		}
 	}
-
 }
 
 func BanIpFromPSTN(sess *agi.Session) {
@@ -350,7 +352,6 @@ func BanIpFromPSTN(sess *agi.Session) {
 		BAN["ip"] = res[2]
 		BAN["port"] = res[3]
 	}
-
 	rex1, err := regexp.Compile(`^sip:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$`)
 	res1 := rex1.FindStringSubmatch(sipuri.Dat)
 	if res1 != nil {
@@ -358,7 +359,6 @@ func BanIpFromPSTN(sess *agi.Session) {
 		BAN["ip"] = res1[1]
 		BAN["port"] = ""
 	}
-
 	rex2, err := regexp.Compile(`^sip:(\S+)\@(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$`)
 	res2 := rex2.FindStringSubmatch(sipuri.Dat)
 	if res2 != nil {
