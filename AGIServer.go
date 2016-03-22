@@ -199,7 +199,7 @@ func ConfBridgeChannelRedirect(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	}
-	LoggerString("Try create Confbridge CONFNO " + confno + " Channel1 " + sess.Env["channel"] + "Channel2 " + bridgepeer.Dat)
+	LoggerString("Try create Confbridge CONFNO " + confno.Dat + " Channel1 " + sess.Env["channel"] + "Channel2 " + bridgepeer.Dat)
 }
 
 //test 2
