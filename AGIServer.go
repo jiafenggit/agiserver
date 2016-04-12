@@ -10,8 +10,11 @@ import (
 	"regexp"
 	"syscall"
 	"strconv"
+	"strings"
 	"os/signal"
+	"database/sql"
 	"encoding/json"
+	_ "github.com/lib/pq"
 	"github.com/zaf/agi"
 	"github.com/takama/daemon"
 	"github.com/sdidyk/mtproto"
@@ -29,6 +32,7 @@ const (
 var (
 	LOGPATH = "/var/log/asterisk/AGISERVER_log"
 	ALLOW, DENY []string //ALLOW, DENY NETWORKS
+	DBPass, DBName, DBHost, DBPort, DBUser, DBSSL string
 	CONFBRIDGE_FEATURES string //CONFBRIDGE DYNAMIC FEATURES
 	CONFBRIDGE_CONTEXT string //CONFBRIDGE CONTEXT
 	CONFBRIDGE_ADD_CONTEXT string //CONFBRIDGE ADD USERS CONTEXT
@@ -39,21 +43,44 @@ var (
 	AMENU, UMENU string //CONFBRIDGE MENUS
 	stdlog, errlog *log.Logger
 	TG []string
+	TGPATH string
+	unquotedChar  = `[^",\\{}\s(NULL)]`
+    	unquotedValue = fmt.Sprintf("(%s)+", unquotedChar)
+    	quotedChar  = `[^"\\]|\\"|\\\\`
+    	quotedValue = fmt.Sprintf("\"(%s)*\"", quotedChar)
+	arrayValue = fmt.Sprintf("(?P<value>(%s|%s))", unquotedValue, quotedValue)
+	arrayExp = regexp.MustCompile(fmt.Sprintf("((%s)(,)?)", arrayValue))
+	CALLBACKSRC string
+	CALLBACKDST string
+	CALLBACKCONTEXT string
 )
 
 type Config struct {
-	Network Network
 	Tg Tg
+	Pg Pg
+	Network Network
 	Confbridge Confbridge
+	CallbackCall CallbackCall
+
+}
+
+type Tg struct {
+	Rcp []string
+	Path string
+}
+
+type Pg struct {
+	DBPort string
+	DBHost string
+	DBUser string
+	DBPass string
+	DBName string
+	DBSSL string
 }
 
 type Network struct {
 	Allow []string
 	Deny []string
-}
-
-type Tg struct {
-	Rcp []string
 }
 
 type Confbridge struct {
@@ -67,6 +94,12 @@ type Confbridge struct {
 	LengthInnerNum string
 	LengthOuterNum string
 	OutPeer string
+}
+
+type CallbackCall struct {
+	SrcDir string
+	DstDir string
+	Context string
 }
 
 type Service struct {
@@ -92,7 +125,6 @@ func (service *Service) Manage() (string, error) {
 			return usage, nil
 		}
 	}
-
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, os.Kill, syscall.SIGTERM)
 
@@ -180,6 +212,14 @@ func agiSess(sess *agi.Session) {
 	sess.Verbose("STARTVAR IS " + startvar.Dat)
 	return
 }
+
+/*
+func CallbackCall(sess *agi.Session, num string, name string, ) {
+	src := CALLBACKSRC+num
+	dst := CALLBACKDST+num
+	f,
+}
+*/
 
 //test 1
 func ConfBridgeChannelRedirect(sess *agi.Session) {
@@ -443,8 +483,7 @@ func whoisIP(ipip string) {
 
 func NotifyTG(tg_msg string) {
 	LoggerString(tg_msg)
-//	m, err := mtproto.NewMTProto(os.Getenv("HOME") + "/.telegram_go")
-	m, err := mtproto.NewMTProto("/root/.telegram_go")
+	m, err := mtproto.NewMTProto(TGPATH)
 	if err != nil {
 		LoggerString("Create failed")
 		LoggerErr(err)
@@ -464,6 +503,62 @@ func NotifyTG(tg_msg string) {
 			LoggerErr(err)
 		}
 	}
+}
+
+func sqlPut(query string) {
+	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		DBHost, DBPort, DBUser, DBPass, DBName, DBSSL)
+	db, err := sql.Open("postgres", dbinfo)
+	if (err != nil) {
+		fmt.Println(err)
+	}
+	result, err := db.Exec(query)
+	if err != nil {
+		LoggerErr(err)
+	}
+	result.LastInsertId()
+	db.Close()
+}
+
+func sqlGetArray(query string) []string {
+	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		DBHost, DBPort, DBUser, DBPass, DBName, DBSSL)
+	db, err := sql.Open("postgres", dbinfo)
+	if (err != nil) {
+		LoggerErr(err)
+	}
+	rows, err := db.Query(query)
+	if (err != nil) {
+		LoggerErr(err)
+	} else {
+
+	}
+	defer rows.Close()
+
+	var arr string
+	var el []string
+	for rows.Next() {
+		rows.Scan(&arr)
+		VAR := pgArrayToSlice(arr)
+		el = append(el, VAR...)
+	}
+	if (len(el) < 1) {
+		el = append(el, "Err")
+	}
+	db.Close()
+	return el
+}
+
+func pgArrayToSlice(array string) []string {
+    var valueIndex int
+    results := make([]string, 0)
+    matches := arrayExp.FindAllStringSubmatch(array, -1)
+    for _, match := range matches {
+        s := match[valueIndex]
+        s = strings.Trim(s, "\"")
+        results = append(results, s)
+    }
+    return results
 }
 
 func init() {
@@ -488,8 +583,21 @@ func init() {
 	LEN_OUTER_NUM = conf.Confbridge.LengthOuterNum
 	OUTPEER = conf.Confbridge.OutPeer
 	TG = conf.Tg.Rcp
+	TGPATH = conf.Tg.Path
 	AMENU = conf.Confbridge.AdminMenu
 	UMENU = conf.Confbridge.UserMenu
+
+	DBPass = conf.Pg.DBPass
+	DBName = conf.Pg.DBName
+	DBHost = conf.Pg.DBHost
+	DBPort = conf.Pg.DBPort
+	DBUser = conf.Pg.DBUser
+	DBSSL = conf.Pg.DBSSL
+
+	CALLBACKSRC = conf.CallbackCall.SrcDir
+	CALLBACKDST = conf.CallbackCall.DstDir
+	CALLBACKCONTEXT = conf.CallbackCall.Context
+
 	stdlog = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	errlog = log.New(os.Stderr, "", log.Ldate|log.Ltime)
 	NotifyTG("Start/Restart " + _DAEMON_NAME + " " + _DAEMON_DESC)

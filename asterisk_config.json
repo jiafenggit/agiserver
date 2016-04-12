@@ -1,10 +1,17 @@
 {
+  "tg" : {
+    "Rcp" : ["00000000"]
+  },
+  "pg" : {
+    "DBPort" : "5432",
+    "DBHost" : "db.example.go",
+    "DBUser" : "db",
+    "DBPass" : "db",
+    "DBName" : "db"
+  },
   "network" : {
     "allow" : ["192.168.0.0/24", "127.0.0.0/32"],
     "deny" : ["0.0.0.0/0"]
-  },
-  "tg" : {
-    "Rcp" : ["00000000"]
   },
   "confbridge" : {
     "df" : "conf_inv0",
