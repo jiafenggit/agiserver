@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"time"
+	"bytes"
 	"bufio"
 	"regexp"
 	"syscall"
@@ -19,7 +20,6 @@ import (
 	"github.com/takama/daemon"
 	"github.com/sdidyk/mtproto"
 	"github.com/martinolsen/go-whois"
-	"bytes"
 )
 
 const (
@@ -39,6 +39,8 @@ var (
 	CONFBRIDGE_MEMBER_ADD string // CONFBRIDGE ADD USERS SOUND
 	LEN_INNER_NUM, LEN_OUTER_NUM string // NUMBERS LENGTH
 	CONFBRIDGES = make(map[string][]map[string]string) // CONNECTED CONFBRIDGES
+	FAXDIR, FAXRECVSTR string
+	FAXNUMS []string
 	OUTPEER string
 	AGIHOST, AGIPORT string
 	AMENU, UMENU string //CONFBRIDGE MENUS
@@ -52,12 +54,12 @@ var (
 	arrayValue = fmt.Sprintf("(?P<value>(%s|%s))", unquotedValue, quotedValue)
 	arrayExp = regexp.MustCompile(fmt.Sprintf("((%s)(,)?)", arrayValue))
 	CALLBACKDST, CALLBACKQUERY, CALLBACKSET string
-
 )
 
 type Config struct {
 	Tg Tg
 	Pg Pg
+	Fax Fax
 	Network Network
 	AgiServer AgiServer
 	Confbridge Confbridge
@@ -76,6 +78,12 @@ type Pg struct {
 	DBPass string
 	DBName string
 	DBSSL string
+}
+
+type Fax struct {
+	Dir string
+	RecvStr string
+	Nums []string
 }
 
 type Network struct {
@@ -213,6 +221,8 @@ func agiSess(sess *agi.Session) {
 			ConfBridgeConfs(sess)
 		} else if startvar.Dat == "callback_call" {
 			CallbackCall(sess)
+		} else if startvar.Dat == "fax_receive" {
+			FaxRecv(sess)
 		}
 	}
 	sess.Verbose("================== Complete ======================")
@@ -220,6 +230,43 @@ func agiSess(sess *agi.Session) {
 	return
 }
 
+func isValueInList(value string, list []string) bool {
+    	for _, v := range list {
+        	if v == value {
+            		return true
+        	}
+    	}
+    	return false
+}
+
+func FaxRecv(sess *agi.Session) {
+	sess.Answer()
+	uid := strings.Split(sess.Env["uniqueid"], ".")
+	_, err := sess.SetVariable("FAXFILENAME", fmt.Sprintf("%s_%s_%s", sess.Env["callerid"], sess.Env["dnid"], uid[2]))
+	_, err = sess.SetVariable("FAXOPT(headerinfo)", fmt.Sprintf("Received_by_%s_%s", sess.Env["callerid"], uid[2]))
+	_, err = sess.SetVariable("FAXOPT(localstationid)", sess.Env["callerid"])
+	_, err = sess.SetVariable("FAXOPT(maxrate)", "14400")
+	_, err = sess.SetVariable("FAXOPT(minrate)", "4800")
+	filename, err := sess.GetVariable("FAXFILENAME")
+	_, err = sess.Exec("ReceiveFax", fmt.Sprintf(FAXDIR+FAXRECVSTR, filename.Dat))
+	if err != nil {
+		LoggerErr(err)
+	} else {
+//		if isValueInList(sess.Env["dnid"], FAXNUMS) {
+			fs, err := sess.GetVariable("FAXSTATUS")
+			fp, err := sess.GetVariable("FAXPAGES")
+			fb, err := sess.GetVariable("FAXBITRATE")
+			fr, err := sess.GetVariable("FAXRESOLUTION")
+			if err != nil {
+				LoggerErr(err)
+			}
+			msg := fmt.Sprintf("Статус: %s\nС номера: %s\nНа номер: %s\nКоличество страниц: %s\nСкорость передачи(bitrate): %s\nРазрешение файла: %s",
+				fs.Dat, sess.Env["callerid"], sess.Env["dnid"], fp.Dat, fb.Dat, fr.Dat)
+			NotifyTG(msg)
+//		}
+	}
+	sess.Hangup()
+}
 
 func CallbackCall(sess *agi.Session) {
 	rows, err := sqlConn().Query(fmt.Sprintf(CALLBACKQUERY, sess.Env["callerid"]))
@@ -230,8 +277,10 @@ func CallbackCall(sess *agi.Session) {
 	for rows.Next() {
 		rows.Scan(&arg1, &arg2, &arg3, &arg4, &arg5)
 	}
+	sqlConn().Close()
 	buf := bytes.NewBufferString("")
 	call := fmt.Sprintf(CALLBACKSET, arg3, arg2, arg1, arg1, arg1, arg2, arg3, arg4, "0", "0", "FALSE")
+	LoggerString(call)
 	buf.Write([]byte(call))
 	dst := CALLBACKDST+sess.Env["callerid"]
 	f, _ := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
@@ -635,6 +684,10 @@ func init() {
 	CALLBACKDST = conf.Callback.DstDir
 	CALLBACKQUERY = conf.Callback.Query
 	CALLBACKSET = conf.Callback.Set
+
+	FAXDIR = conf.Fax.Dir
+	FAXRECVSTR = conf.Fax.RecvStr
+	FAXNUMS = conf.Fax.Nums
 
 	stdlog = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	errlog = log.New(os.Stderr, "", log.Ldate|log.Ltime)

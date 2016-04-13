@@ -5,13 +5,15 @@
 Set(STARTVAR=VAR) variable in your dialplan before exec AGI(agi://127.0.0.1/AGIServer)
 
 available VARS:
-    block - for blocking ip addresses via iptables (testing)
+    block - for blocking ip addresses via iptables
     inbound - for incoming calls
     CONFBRIDGES:
         confbridge_channelredirect - for confbridge create as admin and add callee (bridged channel)
         confbridge_access - confbridge access
         confbridge_addmembers - try to add member
-        confbridge_confs - add member
+        confbridge_confs - add member    
+    callback_call - for Callback calls
+    fax_receive - fax receive
 ```
 
 ## Example Internal Confbridge:
