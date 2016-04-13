@@ -24,5 +24,10 @@
     "lengthinnernum" : "2",
     "lengthouternum" : "15",
     "outpeer" : "0000000"
+  },
+  "CallbackCall" : {
+    "DstDir" : "",
+    "Query" : "",
+    "Set" : ""
   }
 }

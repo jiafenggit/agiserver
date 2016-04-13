@@ -19,6 +19,7 @@ import (
 	"github.com/takama/daemon"
 	"github.com/sdidyk/mtproto"
 	"github.com/martinolsen/go-whois"
+	"bytes"
 )
 
 const (
@@ -50,9 +51,8 @@ var (
     	quotedValue = fmt.Sprintf("\"(%s)*\"", quotedChar)
 	arrayValue = fmt.Sprintf("(?P<value>(%s|%s))", unquotedValue, quotedValue)
 	arrayExp = regexp.MustCompile(fmt.Sprintf("((%s)(,)?)", arrayValue))
-	CALLBACKSRC string
-	CALLBACKDST string
-	CALLBACKCONTEXT string
+	CALLBACKDST, CALLBACKQUERY, CALLBACKSET string
+
 )
 
 type Config struct {
@@ -61,8 +61,7 @@ type Config struct {
 	Network Network
 	AgiServer AgiServer
 	Confbridge Confbridge
-	CallbackCall CallbackCall
-
+	Callback Callback
 }
 
 type Tg struct {
@@ -102,10 +101,10 @@ type Confbridge struct {
 	OutPeer string
 }
 
-type CallbackCall struct {
-	SrcDir string
+type Callback struct {
 	DstDir string
-	Context string
+	Query string
+	Set string
 }
 
 type Service struct {
@@ -212,6 +211,8 @@ func agiSess(sess *agi.Session) {
 			ConfBridgeAddMembers(sess)
 		} else if startvar.Dat == "confbridge_confs" {
 			ConfBridgeConfs(sess)
+		} else if startvar.Dat == "callback_call" {
+			CallbackCall(sess)
 		}
 	}
 	sess.Verbose("================== Complete ======================")
@@ -219,13 +220,28 @@ func agiSess(sess *agi.Session) {
 	return
 }
 
-/*
-func CallbackCall(sess *agi.Session, num string, name string, ) {
-	src := CALLBACKSRC+num
-	dst := CALLBACKDST+num
-	f,
+
+func CallbackCall(sess *agi.Session) {
+	rows, err := sqlConn().Query(fmt.Sprintf(CALLBACKQUERY, sess.Env["callerid"]))
+	if err != nil {
+		LoggerErr(err)
+	}
+	var arg1, arg2, arg3, arg4, arg5 string
+	for rows.Next() {
+		rows.Scan(&arg1, &arg2, &arg3, &arg4, &arg5)
+	}
+	buf := bytes.NewBufferString("")
+	call := fmt.Sprintf(CALLBACKSET, arg3, arg2, arg1, arg1, arg1, arg2, arg3, arg4, "0", "0", "FALSE")
+	buf.Write([]byte(call))
+	dst := CALLBACKDST+sess.Env["callerid"]
+	f, _ := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	f.Write(buf.Bytes())
+	defer f.Close()
+	err = os.Chmod(dst, 0777)
+    	if err != nil {
+		LoggerErr(err)
+  	}
 }
-*/
 
 //test 1
 func ConfBridgeChannelRedirect(sess *agi.Session) {
@@ -424,7 +440,7 @@ func BanIpFromPSTN(sess *agi.Session) {
 
 //test
 func checkIP(ipip string) {
-//	anet := false;
+	anet := false;
 	cip := net.ParseIP(ipip)
 	for _, iprange := range ALLOW {
 		ip, ipnet, err := net.ParseCIDR(iprange)
@@ -434,14 +450,14 @@ func checkIP(ipip string) {
 		for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
 			if ip.String() == cip.String() {
 				LoggerString("IP FROM ALLOW NETWORK " + ip.String())
-//				anet = true
+				anet = true
 				return
 			}
 		}
 	}
-//	if anet == false {
+	if anet == false {
 		whoisIP(ipip)
-//	}
+	}
 }
 
 //test
@@ -490,8 +506,6 @@ func whoisIP(ipip string) {
 	NotifyTG(msg)
 }
 
-
-
 func NotifyTG(tg_msg string) {
 	LoggerString(tg_msg)
 	m, err := mtproto.NewMTProto(TGPATH)
@@ -514,6 +528,16 @@ func NotifyTG(tg_msg string) {
 			LoggerErr(err)
 		}
 	}
+}
+
+func sqlConn() *sql.DB {
+	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		DBHost, DBPort, DBUser, DBPass, DBName, DBSSL)
+	db, err := sql.Open("postgres", dbinfo)
+	if (err != nil) {
+		LoggerErr(err)
+	}
+	return db
 }
 
 func sqlPut(query string) {
@@ -608,9 +632,9 @@ func init() {
 	AGIHOST = conf.AgiServer.Host
 	AGIPORT = conf.AgiServer.Port
 
-	CALLBACKSRC = conf.CallbackCall.SrcDir
-	CALLBACKDST = conf.CallbackCall.DstDir
-	CALLBACKCONTEXT = conf.CallbackCall.Context
+	CALLBACKDST = conf.Callback.DstDir
+	CALLBACKQUERY = conf.Callback.Query
+	CALLBACKSET = conf.Callback.Set
 
 	stdlog = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	errlog = log.New(os.Stderr, "", log.Ldate|log.Ltime)
