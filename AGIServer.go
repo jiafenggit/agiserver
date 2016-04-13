@@ -22,10 +22,8 @@ import (
 )
 
 const (
-	_DAEMON_NAME    = "agiserver"
-	_DAEMON_DESC 	= "AGIServer"
-	ipaddr 		= "127.0.0.1"
-	port 		= "4573"
+	_DN 		= "agiserver"
+	_DD	 	= "AGIServer"
 	_LT		= "\r\n" //"\x0D\x0A"
 )
 
@@ -39,7 +37,9 @@ var (
 	CONFBRIDGE_CONFS string //CONFBRIDGE CONTEXT FOR OTHER CHANNELS
 	CONFBRIDGE_MEMBER_ADD string // CONFBRIDGE ADD USERS SOUND
 	LEN_INNER_NUM, LEN_OUTER_NUM string // NUMBERS LENGTH
+	CONFBRIDGES = make(map[string][]map[string]string) // CONNECTED CONFBRIDGES
 	OUTPEER string
+	AGIHOST, AGIPORT string
 	AMENU, UMENU string //CONFBRIDGE MENUS
 	stdlog, errlog *log.Logger
 	TG []string
@@ -59,6 +59,7 @@ type Config struct {
 	Tg Tg
 	Pg Pg
 	Network Network
+	AgiServer AgiServer
 	Confbridge Confbridge
 	CallbackCall CallbackCall
 
@@ -81,6 +82,11 @@ type Pg struct {
 type Network struct {
 	Allow []string
 	Deny []string
+}
+
+type AgiServer struct {
+	Host string
+	Port string
 }
 
 type Confbridge struct {
@@ -133,11 +139,11 @@ func (service *Service) Manage() (string, error) {
 		// Started as a standalone AGI app by asterisk.
 		spawnAgi(nil)
 	} else {
-		ln, err := net.Listen("tcp", ipaddr + ":" + port)
+		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%s", AGIHOST, AGIPORT))
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("Listening for FastAGI connections on " + ipaddr + ":" + port)
+		log.Printf(fmt.Sprintf("Listening for FastAGI connections on %s:%s", AGIHOST, AGIPORT))
 		defer ln.Close()
 		for {
 			conn, err := ln.Accept()
@@ -231,15 +237,16 @@ func ConfBridgeChannelRedirect(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	}
-	_, err = sess.Exec("ChannelRedirect", sess.Env["channel"] + "," + CONFBRIDGE_CONTEXT + "," + confno.Dat + ",1")
+	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", sess.Env["channel"], CONFBRIDGE_CONTEXT, confno.Dat))
 	if err != nil {
 		LoggerErr(err)
 	}
-	_, err = sess.Exec("ChannelRedirect", bridgepeer.Dat + "," + CONFBRIDGE_CONTEXT + "," + confno.Dat + ",1")
+	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", bridgepeer.Dat, CONFBRIDGE_CONTEXT, confno.Dat))
 	if err != nil {
 		LoggerErr(err)
 	}
-	LoggerString("Try create Confbridge CONFNO " + confno.Dat + " Channel1 " + sess.Env["channel"] + " Channel2 " + bridgepeer.Dat)
+	LoggerString(fmt.Sprintf("Try create Confbridge CONFNO %s Channel1 %s Channel2 %s",
+		confno.Dat, sess.Env["channel"], bridgepeer.Dat))
 }
 
 //test 2
@@ -256,15 +263,15 @@ func ConfBridgeAccess(sess *agi.Session) {
 	if sess.Env["extension"] == sess.Env["callerid"] {
 		inner_num, err := strconv.Atoi(LEN_INNER_NUM)
 		if len(sess.Env["callerid"]) == inner_num {
-			_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + AMENU)
+			_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"], AMENU))
 		} else {
-			_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + UMENU)
+			_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"], UMENU))
 		}
 		if err != nil {
 			LoggerErr(err)
 		}
 	} else {
-		_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + UMENU)
+		_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"], UMENU))
 	}
 	if err != nil {
 		LoggerErr(err)
@@ -290,10 +297,12 @@ func ConfBridgeAddMembers(sess *agi.Session) {
 		inner_num, err := strconv.Atoi(LEN_INNER_NUM)
 		outer_num, err := strconv.Atoi(LEN_OUTER_NUM)
 		if len(dst.Dat) == inner_num {
-			_, err = sess.Exec("Originate", "SIP/" + dst.Dat + ",exten," + CONFBRIDGE_CONFS + "," + callerid + ",1")
+			_, err = sess.Exec("Originate",
+				fmt.Sprintf("SIP/%s,exten,%s,%s,1", dst.Dat, CONFBRIDGE_CONFS, callerid))
 		} else if len(dst.Dat) == outer_num {
 			_, err := sess.SetVariable("CALLERID(num)", OUTPEER)
-			_, err = sess.Exec("Originate", "SIP/" + dst.Dat + "@" + OUTPEER + ",exten," + CONFBRIDGE_CONFS + "," + callerid + ",1")
+			_, err = sess.Exec("Originate",
+				fmt.Sprintf("SIP/%s@%s,exten,%s,%s,1", dst.Dat, OUTPEER, CONFBRIDGE_CONFS, callerid))
 			if err != nil {
 				LoggerErr(err)
 			}
@@ -317,7 +326,7 @@ func ConfBridgeConfs(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	}
-	_, err = sess.Exec("ConfBridge", sess.Env["extension"] + ",,," + UMENU)
+	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"], UMENU))
 	if err != nil {
 		LoggerErr(err)
 	}
@@ -476,7 +485,9 @@ func whoisIP(ipip string) {
 			route = "NO ROUTE OR CIDR FIELD"
 		}
 	}
-	NotifyTG("Phreackers Attack: " + ipip + _LT + "Country: " + country + _LT + "Inetnum: " + inetnum + _LT + "Route: " + route)
+	msg := fmt.Sprintf("Phreakers Attack: %s %sCountry: %s %sInetnum: %s %sRoute %s",
+		ipip, _LT, country, _LT, inetnum, _LT, route)
+	NotifyTG(msg)
 }
 
 
@@ -594,17 +605,20 @@ func init() {
 	DBUser = conf.Pg.DBUser
 	DBSSL = conf.Pg.DBSSL
 
+	AGIHOST = conf.AgiServer.Host
+	AGIPORT = conf.AgiServer.Port
+
 	CALLBACKSRC = conf.CallbackCall.SrcDir
 	CALLBACKDST = conf.CallbackCall.DstDir
 	CALLBACKCONTEXT = conf.CallbackCall.Context
 
 	stdlog = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	errlog = log.New(os.Stderr, "", log.Ldate|log.Ltime)
-	NotifyTG("Start/Restart " + _DAEMON_NAME + " " + _DAEMON_DESC)
+	NotifyTG("Start/Restart " + _DN + " " + _DD)
 }
 
 func main() {
-	srv, err := daemon.New(_DAEMON_NAME, _DAEMON_DESC)
+	srv, err := daemon.New(_DN, _DD)
 	if err != nil {
 		errlog.Println("Error: ", err)
 		os.Exit(1)
