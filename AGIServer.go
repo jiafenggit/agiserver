@@ -19,7 +19,7 @@ import (
 	"github.com/zaf/agi"
 	_ "github.com/lib/pq"
 	"github.com/takama/daemon"
-	"github.com/sdidyk/mtproto"
+	"github.com/yosh0/mtproto"
 	"github.com/martinolsen/go-whois"
 )
 
