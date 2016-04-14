@@ -12,11 +12,12 @@ import (
 	"syscall"
 	"strconv"
 	"strings"
+	"net/smtp"
 	"os/signal"
 	"database/sql"
 	"encoding/json"
-	_ "github.com/lib/pq"
 	"github.com/zaf/agi"
+	_ "github.com/lib/pq"
 	"github.com/takama/daemon"
 	"github.com/sdidyk/mtproto"
 	"github.com/martinolsen/go-whois"
@@ -39,6 +40,7 @@ var (
 	CONFBRIDGE_MEMBER_ADD string // CONFBRIDGE ADD USERS SOUND
 	LEN_INNER_NUM, LEN_OUTER_NUM string // NUMBERS LENGTH
 	CONFBRIDGES = make(map[string][]map[string]string) // CONNECTED CONFBRIDGES
+	MAILSERVER, MAILPORT, MAILDOMAIN, MAILTO, MAIL string
 	FAXDIR, FAXRECVSTR string
 	FAXNUMS []string
 	OUTPEER string
@@ -60,10 +62,11 @@ type Config struct {
 	Tg Tg
 	Pg Pg
 	Fax Fax
+	Mail Mail
 	Network Network
+	Callback Callback
 	AgiServer AgiServer
 	Confbridge Confbridge
-	Callback Callback
 }
 
 type Tg struct {
@@ -78,6 +81,14 @@ type Pg struct {
 	DBPass string
 	DBName string
 	DBSSL string
+}
+
+type Mail struct {
+	Server	string
+	Port	string
+	Domain	string
+	Mailto	string
+	Mail string
 }
 
 type Fax struct {
@@ -143,7 +154,6 @@ func (service *Service) Manage() (string, error) {
 
 	astEnv := getAstEnv()
 	if astEnv["AST_AGI_DIR"] != "" {
-		// Started as a standalone AGI app by asterisk.
 		spawnAgi(nil)
 	} else {
 		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%s", AGIHOST, AGIPORT))
@@ -253,16 +263,18 @@ func FaxRecv(sess *agi.Session) {
 		LoggerErr(err)
 	} else {
 //		if isValueInList(sess.Env["dnid"], FAXNUMS) {
-			fs, err := sess.GetVariable("FAXSTATUS")
-			fp, err := sess.GetVariable("FAXPAGES")
-			fb, err := sess.GetVariable("FAXBITRATE")
-			fr, err := sess.GetVariable("FAXRESOLUTION")
-			if err != nil {
-				LoggerErr(err)
-			}
-			msg := fmt.Sprintf("Статус: %s\nС номера: %s\nНа номер: %s\nКоличество страниц: %s\nСкорость передачи(bitrate): %s\nРазрешение файла: %s",
-				fs.Dat, sess.Env["callerid"], sess.Env["dnid"], fp.Dat, fb.Dat, fr.Dat)
-			NotifyTG(msg)
+		fs, err := sess.GetVariable("FAXSTATUS")
+		fp, err := sess.GetVariable("FAXPAGES")
+		fb, err := sess.GetVariable("FAXBITRATE")
+		fr, err := sess.GetVariable("FAXRESOLUTION")
+		if err != nil {
+			LoggerErr(err)
+		}
+		msg := fmt.Sprintf("Статус: %s\nС номера: %s\nНа номер: %s\nКоличество страниц: %s\nСкорость передачи(bitrate): %s\nРазрешение файла: %s",
+			fs.Dat, sess.Env["callerid"], sess.Env["dnid"], fp.Dat, fb.Dat, fr.Dat)
+		NotifyMail("ФаксВходящий", msg, MAIL)
+		NotifyMail("ФаксВходящий", msg, "fax-"+sess.Env["dnid"])
+		NotifyTG(msg)
 //		}
 	}
 	sess.Hangup()
@@ -280,7 +292,6 @@ func CallbackCall(sess *agi.Session) {
 	sqlConn().Close()
 	buf := bytes.NewBufferString("")
 	call := fmt.Sprintf(CALLBACKSET, arg3, arg2, arg1, arg1, arg1, arg2, arg3, arg4, "0", "0", "FALSE")
-	LoggerString(call)
 	buf.Write([]byte(call))
 	dst := CALLBACKDST+sess.Env["callerid"]
 	f, _ := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
@@ -645,6 +656,38 @@ func pgArrayToSlice(array string) []string {
     return results
 }
 
+func NotifyMail(subj string, message string, mailto string) {
+	hname, err := os.Hostname()
+	subj_hname := fmt.Sprintf("[%s]", strings.ToUpper(hname))
+	subj_text := fmt.Sprintf("[%s]", strings.ToUpper(subj))
+	c, err := smtp.Dial(fmt.Sprintf("%s:%s", MAILSERVER, MAILPORT))
+	if err != nil {
+		LoggerString("Error: Cant connect to Mail server")
+		LoggerErr(err)
+	} else {
+		c.Mail(fmt.Sprintf("%s@%s", hname, MAILDOMAIN))
+		c.Rcpt(fmt.Sprintf("%s@%s", mailto, MAILDOMAIN))
+		wc, err := c.Data()
+		if err != nil {
+			LoggerErr(err)
+		}
+		msg := []byte(fmt.Sprintf("Content-Type: text/plain; charset=\"utf-8\"%sTo: %s@%s%sSubject: %s%s%s%s%s%s",
+			_LT, mailto, MAILDOMAIN, _LT, subj_hname, subj_text, _LT, _LT, message, _LT))
+		_, err = wc.Write(msg)
+		defer wc.Close()
+		LoggerString(string(msg))
+		if err != nil {
+			LoggerErr(err)
+		}
+		err = wc.Close()
+		if err != nil {
+			LoggerErr(err)
+		}
+		c.Quit()
+	}
+	defer c.Close()
+}
+
 func init() {
 	file, e1 := os.Open("/etc/asterisk/asterisk_config.json")
 	if e1 != nil {
@@ -684,6 +727,12 @@ func init() {
 	CALLBACKDST = conf.Callback.DstDir
 	CALLBACKQUERY = conf.Callback.Query
 	CALLBACKSET = conf.Callback.Set
+
+	MAILSERVER = conf.Mail.Server
+	MAILPORT = conf.Mail.Port
+	MAILDOMAIN = conf.Mail.Domain
+	MAILTO = conf.Mail.Mailto
+	MAIL = conf.Mail.Mail
 
 	FAXDIR = conf.Fax.Dir
 	FAXRECVSTR = conf.Fax.RecvStr
