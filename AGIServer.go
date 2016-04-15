@@ -597,6 +597,7 @@ func NotifyTG(tg_msg string) {
 	}
 }
 
+/*
 func sqlConn() *sql.DB {
 	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		DBHost, DBPort, DBUser, DBPass, DBName, DBSSL)
@@ -606,6 +607,7 @@ func sqlConn() *sql.DB {
 	}
 	return db
 }
+*/
 
 func sqlPut(query string) {
 	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
