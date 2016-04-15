@@ -281,15 +281,22 @@ func FaxRecv(sess *agi.Session) {
 }
 
 func CallbackCall(sess *agi.Session) {
-	rows, err := sqlConn().Query(fmt.Sprintf(CALLBACKQUERY, sess.Env["callerid"]))
+	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		DBHost, DBPort, DBUser, DBPass, DBName, DBSSL)
+	db, err := sql.Open("postgres", dbinfo)
+	if (err != nil) {
+		LoggerErr(err)
+	}
+	rows, err := db.Query(fmt.Sprintf(CALLBACKQUERY, sess.Env["callerid"]))
 	if err != nil {
 		LoggerErr(err)
 	}
+	defer rows.Close()
 	var arg1, arg2, arg3, arg4, arg5 string
 	for rows.Next() {
 		rows.Scan(&arg1, &arg2, &arg3, &arg4, &arg5)
 	}
-	sqlConn().Close()
+	db.Close()
 	buf := bytes.NewBufferString("")
 	call := fmt.Sprintf(CALLBACKSET, arg3, arg2, arg1, arg1, arg1, arg2, arg3, arg4, "0", "0", "FALSE")
 	buf.Write([]byte(call))
