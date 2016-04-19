@@ -57,6 +57,7 @@ var (
 	arrayExp = regexp.MustCompile(fmt.Sprintf("((%s)(,)?)", arrayValue))
 	CALLBACKDST, CALLBACKQUERY, CALLBACKSET string
 	BLOCKPSTNQUERY string
+	UEBLOCKEDABON string
 )
 
 type Config struct {
@@ -68,6 +69,16 @@ type Config struct {
 	Callback Callback
 	AgiServer AgiServer
 	Confbridge Confbridge
+	BlockFromPSTN BlockFromPSTN
+	UserEvents UserEvents
+}
+
+type UserEvents struct {
+	BlockedAbon string
+}
+
+type BlockFromPSTN struct {
+	Query string
 }
 
 type Tg struct {
@@ -218,24 +229,27 @@ func agiSess(sess *agi.Session) {
 //	LoggerAGI(sess)
 	startvar, err := sess.GetVariable("STARTVAR")
 	if err == nil {
-		if startvar.Dat == "block" {
-			BanIpFromPSTN(sess)
-		} else if startvar.Dat == "inbound" {
+		switch startvar.Dat {
+		case "inbound" :
 			InboundCall(sess)
-		} else if startvar.Dat == "confbridge_access" {
+		case "block" :
+			BanIpFromPSTN(sess)
+		case "confbridge_access" :
 			ConfBridgeAccess(sess)
-		} else if startvar.Dat == "confbridge_channelredirect" {
+		case "confbridge_channelredirect" :
 			ConfBridgeChannelRedirect(sess)
-		} else if startvar.Dat == "confbridge_addmembers" {
+		case "confbridge_addmembers" :
 			ConfBridgeAddMembers(sess)
-		} else if startvar.Dat == "confbridge_confs" {
+		case "confbridge_confs" :
 			ConfBridgeConfs(sess)
-		} else if startvar.Dat == "callback_call" {
+		case "callback_call" :
 			CallbackCall(sess)
-		} else if startvar.Dat == "fax_receive" {
+		case "fax_receive" :
 			FaxRecv(sess)
-		} else if startvar.Dat == "blocked_from_pstn" {
+		case "blocked_from_pstn" :
 			BlockedFromPSTN(sess)
+		default:
+			sess.Verbose("DEFAULT STARTVAR")
 		}
 	}
 	sess.Verbose("================== Complete ======================")
@@ -255,6 +269,18 @@ func BlockedFromPSTN(sess *agi.Session) {
 		LoggerErr(err)
 	}
 	defer rows.Close()
+	var arg1, arg2 string
+	for rows.Next() {
+		rows.Scan(&arg1, &arg2)
+	}
+	db.Close()
+	if len(arg1) != 0 && len(arg2) != 0 {
+		_, err := sess.Exec("UserEvent", fmt.Sprintf(UEBLOCKEDABON, sess.Env["callerid"], sess.Env["uniqueid"]))
+		if err != nil {
+			LoggerErr(err)
+		}
+		sess.Hangup()
+	}
 }
 
 func isValueInList(value string, list []string) bool {
@@ -314,9 +340,6 @@ func CallbackCall(sess *agi.Session) {
 		rows.Scan(&arg1, &arg2, &arg3, &arg4, &arg5)
 	}
 	db.Close()
-	if len(arg1 || arg2) != nil {
-
-	}
 	if len(arg1) != 0 && len(arg2) != 0 && len(arg3) != 0 && len(arg4) != 0 {
 		buf := bytes.NewBufferString("")
 		call := fmt.Sprintf(CALLBACKSET, arg3, arg2, arg1, arg1, arg1, arg2, arg3, arg4, "0", "0", "FALSE")
@@ -768,6 +791,10 @@ func init() {
 	FAXDIR = conf.Fax.Dir
 	FAXRECVSTR = conf.Fax.RecvStr
 	FAXNUMS = conf.Fax.Nums
+
+	BLOCKPSTNQUERY = conf.BlockFromPSTN.Query
+
+	UEBLOCKEDABON = conf.UserEvents.BlockedAbon
 
 	stdlog = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	errlog = log.New(os.Stderr, "", log.Ldate|log.Ltime)
