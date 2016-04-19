@@ -252,8 +252,8 @@ func isValueInList(value string, list []string) bool {
 func FaxRecv(sess *agi.Session) {
 	sess.Answer()
 	uid := strings.Split(sess.Env["uniqueid"], ".")
-	_, err := sess.SetVariable("FAXFILENAME", fmt.Sprintf("%s_%s_%s", sess.Env["callerid"], sess.Env["dnid"], uid[1]))
-	_, err = sess.SetVariable("FAXOPT(headerinfo)", fmt.Sprintf("Received_by_%s_%s", sess.Env["callerid"], uid[1]))
+	_, err := sess.SetVariable("FAXFILENAME", fmt.Sprintf("%s_%s_%s", sess.Env["callerid"], sess.Env["dnid"], uid[2]))
+	_, err = sess.SetVariable("FAXOPT(headerinfo)", fmt.Sprintf("Received_by_%s_%s", sess.Env["callerid"], uid[2]))
 	_, err = sess.SetVariable("FAXOPT(localstationid)", sess.Env["callerid"])
 	_, err = sess.SetVariable("FAXOPT(maxrate)", "14400")
 	_, err = sess.SetVariable("FAXOPT(minrate)", "4800")
