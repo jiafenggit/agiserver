@@ -26,7 +26,7 @@ import (
 const (
 	_DN 		= "agiserver"
 	_DD	 	= "AGIServer"
-	_LT		= "\r\n" //"\x0D\x0A"
+	_LT		= "\x0D\x0A"
 )
 
 var (
@@ -56,6 +56,7 @@ var (
 	arrayValue = fmt.Sprintf("(?P<value>(%s|%s))", unquotedValue, quotedValue)
 	arrayExp = regexp.MustCompile(fmt.Sprintf("((%s)(,)?)", arrayValue))
 	CALLBACKDST, CALLBACKQUERY, CALLBACKSET string
+	BLOCKPSTNQUERY string
 )
 
 type Config struct {
@@ -233,11 +234,27 @@ func agiSess(sess *agi.Session) {
 			CallbackCall(sess)
 		} else if startvar.Dat == "fax_receive" {
 			FaxRecv(sess)
+		} else if startvar.Dat == "blocked_from_pstn" {
+			BlockedFromPSTN(sess)
 		}
 	}
 	sess.Verbose("================== Complete ======================")
 	sess.Verbose("STARTVAR IS " + startvar.Dat)
 	return
+}
+
+func BlockedFromPSTN(sess *agi.Session) {
+	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		DBHost, DBPort, DBUser, DBPass, DBName, DBSSL)
+	db, err := sql.Open("postgres", dbinfo)
+	if (err != nil) {
+		LoggerErr(err)
+	}
+	rows, err := db.Query(fmt.Sprintf(BLOCKPSTNQUERY, sess.Env["callerid"]))
+	if err != nil {
+		LoggerErr(err)
+	}
+	defer rows.Close()
 }
 
 func isValueInList(value string, list []string) bool {
@@ -297,17 +314,22 @@ func CallbackCall(sess *agi.Session) {
 		rows.Scan(&arg1, &arg2, &arg3, &arg4, &arg5)
 	}
 	db.Close()
-	buf := bytes.NewBufferString("")
-	call := fmt.Sprintf(CALLBACKSET, arg3, arg2, arg1, arg1, arg1, arg2, arg3, arg4, "0", "0", "FALSE")
-	buf.Write([]byte(call))
-	dst := CALLBACKDST+sess.Env["callerid"]
-	f, _ := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
-	f.Write(buf.Bytes())
-	defer f.Close()
-	err = os.Chmod(dst, 0777)
-    	if err != nil {
-		LoggerErr(err)
-  	}
+	if len(arg1 || arg2) != nil {
+
+	}
+	if len(arg1) != 0 && len(arg2) != 0 && len(arg3) != 0 && len(arg4) != 0 {
+		buf := bytes.NewBufferString("")
+		call := fmt.Sprintf(CALLBACKSET, arg3, arg2, arg1, arg1, arg1, arg2, arg3, arg4, "0", "0", "FALSE")
+		buf.Write([]byte(call))
+		dst := CALLBACKDST + sess.Env["callerid"]
+		f, _ := os.OpenFile(dst, os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0666)
+		f.Write(buf.Bytes())
+		defer f.Close()
+		err = os.Chmod(dst, 0777)
+		if err != nil {
+			LoggerErr(err)
+		}
+	}
 }
 
 //test 1
