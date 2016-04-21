@@ -41,6 +41,7 @@ var (
 	LEN_INNER_NUM, LEN_OUTER_NUM string // NUMBERS LENGTH
 	CONFBRIDGES = make(map[string][]map[string]string) // CONNECTED CONFBRIDGES
 	MAILSERVER, MAILPORT, MAILDOMAIN, MAILTO, MAIL string
+	BALDIR, BALDDIR, BALANCE, BALCONTRACT, BALNOMONEY, BALONCONRACT, BALMINUS, BALRICH, BALRUB, BALKOP string
 	FAXDIR, FAXRECVSTR string
 	FAXNUMS []string
 	OUTPEER string
@@ -65,12 +66,26 @@ type Config struct {
 	Pg Pg
 	Fax Fax
 	Mail Mail
+	Balance Balance
 	Network Network
 	Callback Callback
 	AgiServer AgiServer
 	Confbridge Confbridge
-	BlockFromPSTN BlockFromPSTN
 	UserEvents UserEvents
+	BlockFromPSTN BlockFromPSTN
+}
+
+type Balance struct {
+	Dir string
+	DDir string
+	Balance string
+	Contract string
+	FNoMoney string
+	FOnContract string
+	FMinus string
+	FRich string
+	Rub string
+	Kop string
 }
 
 type UserEvents struct {
@@ -121,6 +136,7 @@ type AgiServer struct {
 
 type Confbridge struct {
 	Df string
+	OutPeer string
 	Context string
 	AdminMenu string
 	UserMenu string
@@ -129,7 +145,6 @@ type Confbridge struct {
 	PlayMemberAdd string
 	LengthInnerNum string
 	LengthOuterNum string
-	OutPeer string
 }
 
 type Callback struct {
@@ -248,6 +263,8 @@ func agiSess(sess *agi.Session) {
 			FaxRecv(sess)
 		case "blocked_from_pstn" :
 			BlockedFromPSTN(sess)
+		case "balance" :
+			BalanceInfo(sess)
 		default:
 			sess.Verbose("DEFAULT STARTVAR")
 		}
@@ -256,6 +273,125 @@ func agiSess(sess *agi.Session) {
 	sess.Verbose("STARTVAR IS " + startvar.Dat)
 	return
 }
+
+
+func BalanceInfo(sess *agi.Session) {
+	b, err := sess.GetVariable(BALANCE)
+	if err != nil {
+		LoggerErr(err)
+	}
+//	c, err := sess.GetVariable(BALCONTRACT)
+	if err != nil {
+		LoggerErr(err)
+	}
+	bi, err := strconv.Atoi(b.Dat)
+	FILES := make([]string, 0)
+	if bi < 0 {
+		FILES = []string{BALNOMONEY, BALONCONRACT, BALMINUS}
+		eBackground(sess, BALDIR, FILES)
+//		bb = fmt.Sprintf("%.2f", bb*(-1))
+	} else if bi > 0 && bi < 500 {
+		FILES = []string{BALONCONRACT}
+		eBackground(sess, BALDIR, FILES)
+	} else if bi > 500 {
+		FILES = []string{BALRICH, BALCONTRACT}
+		eBackground(sess, BALDIR, FILES)
+	} else {
+		FILES = []string{BALCONTRACT}
+		eBackground(sess, BALDIR, FILES)
+	}
+	rex, err := regexp.Compile(`^(\d+)\.(\d{2})$`)
+	res := rex.FindStringSubmatch(string(bi))
+	if res != nil {
+		rub, err := strconv.Atoi(res[1])
+		kop, err := strconv.Atoi(res[2])
+		rex2, err := regexp.Compile(`^0(\d+)$`)
+		res2 := rex2.FindStringSubmatch(string(kop))
+		if res2 != nil {
+			kop, err = strconv.Atoi(res2[1])
+		}
+		if err != nil {
+			LoggerErr(err)
+		}
+		BalanceDigits(sess, BALRUB, rub)
+		BalanceDigits(sess, BALKOP, kop)
+	}
+}
+
+func eBackground(sess *agi.Session, dir string, phrases []string) {
+	for _, phrase := range phrases {
+		sess.Exec("Background", fmt.Sprintf("%s%s", dir, phrase))
+	}
+}
+
+func BalanceDigits(sess *agi.Session, class string, d int) {
+	var unity, tens, hundreds, thousand int
+//	fmt.Println(unity)
+	if d >= 1000 && d < 1000000 {
+		thousand = d/1000
+		if class != "thousand" {
+			BalanceDigits(sess, "thousand", thousand)
+		}
+		hundreds = ((d - thousand*1000)/100)*100
+		if hundreds < 1 {
+			hundreds = 0
+		}
+		tens = d - thousand * 1000 - hundreds
+		if tens >= 10 && tens < 20 {
+			unity = 0
+		} else {
+			tens = (tens/10)*10
+			unity = (d - thousand * 1000 - hundreds - tens)
+		}
+
+		if tens < 10 {
+			tens = 0
+		}
+		if hundreds != 0 {
+			eBackground(sess, BALDDIR, []string{string(hundreds)})
+		}
+		if tens != 0 {
+			eBackground(sess, BALDDIR, []string{string(tens)})
+		}
+		if unity != 0 {
+			eBackground(sess, BALDDIR, []string{string(unity)})
+		}
+		BalanceMoney(sess, class, unity)
+	} else if d >= 100 && d <= 1000 {
+		hundreds = (d/100)*100
+		if (d - hundreds) < 10 {
+			tens = 0
+			unity = d - hundreds
+		} else if (d - hundreds) > 10 && (d - hundreds) < 20 {
+			tens = d - hundreds
+		} else {
+			tens = ((d -hundreds)/10)*10
+			unity = d - hundreds - tens
+		}
+		eBackground(sess, BALDDIR, []string{string(hundreds)})
+		if tens != 0 {
+			eBackground(sess, BALDDIR, []string{string(tens)})
+		}
+	}
+}
+
+func BalanceDigitsThousand() {
+
+}
+
+func BalanceDigitsUnity(sess *agi.Session, class string, d int) {
+	if d > 2 || class == BALRUB {
+		eBackground(sess, BALDDIR, []string{string(d)})
+	}
+	if ((d == 2 && class == BALKOP) || d == 2 && class == "thousand") {
+		eBackground(sess, BALDDIR, []string{string(d)+"_e"})
+	}
+}
+
+func BalanceMoney(sess *agi.Session, class string, d int) {
+
+}
+
 
 func BlockedFromPSTN(sess *agi.Session) {
 	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
@@ -793,8 +929,18 @@ func init() {
 	FAXNUMS = conf.Fax.Nums
 
 	BLOCKPSTNQUERY = conf.BlockFromPSTN.Query
-
 	UEBLOCKEDABON = conf.UserEvents.BlockedAbon
+
+	BALDIR = conf.Balance.Dir
+	BALDDIR = conf.Balance.DDir
+	BALANCE = conf.Balance.Balance
+	BALCONTRACT = conf.Balance.Contract
+	BALNOMONEY = conf.Balance.FNoMoney
+	BALONCONRACT = conf.Balance.FOnContract
+	BALMINUS = conf.Balance.FMinus
+	BALRICH  = conf.Balance.FRich
+	BALRUB = conf.Balance.Rub
+	BALKOP = conf.Balance.Kop
 
 	stdlog = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	errlog = log.New(os.Stderr, "", log.Ldate|log.Ltime)
