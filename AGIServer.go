@@ -241,7 +241,6 @@ func spawnAgi(c net.Conn) {
 
 func agiSess(sess *agi.Session) {
 	var err error
-//	LoggerAGI(sess)
 	startvar, err := sess.GetVariable("STARTVAR")
 	if err == nil {
 		switch startvar.Dat {
@@ -281,7 +280,12 @@ func BalanceInfo(sess *agi.Session) {
 	} else {
 		LoggerString(b.Dat)
 	}
-//	c, err := sess.GetVariable(BALCONTRACT)
+	c, err := sess.GetVariable(BALCONTRACT)
+	if err != nil {
+		LoggerErr(err)
+	}
+	sess.Verbose(fmt.Sprintf("BALANCE: %s %s %s", b.Dat, c.Dat, sess.Env["callerid"]))
+	LoggerString(fmt.Sprintf("BALANCE: %s %s %s", b.Dat, c.Dat, sess.Env["callerid"]))
 	bi := b.Dat
 	FILES := make([]string, 0)
 	if bi < "0" {
@@ -305,7 +309,7 @@ func BalanceInfo(sess *agi.Session) {
 		FILES = []string{BALONCONRACT}
 		eBackground(sess, BALDIR, FILES)
 	}
-	rex, err := regexp.Compile(`^(\d+).(\d{2})$`)
+	rex, err := regexp.Compile(`^(\d+).(\d{2})\d*$`)
 	res := rex.FindStringSubmatch(string(bi))
 	if res != nil {
 		rub := res[1]
@@ -344,7 +348,7 @@ func BalanceInfo(sess *agi.Session) {
 
 func eBackground(sess *agi.Session, dir string, phrases []string) {
 	for _, phrase := range phrases {
-		sess.Verbose("Phrase "+phrase)
+		sess.Verbose("Phrase: "+phrase)
 		_, err:= sess.Exec("Background", fmt.Sprintf("%s%s", dir, phrase))
 		if err != nil {
 			LoggerErr(err)
@@ -436,7 +440,7 @@ func BalanceDigitsUnity(sess *agi.Session, class string, d int) {
 		ds := strconv.Itoa(d)
 		eBackground(sess, BALDDIR, []string{ds})
 	}
-	if ((d == 2 && class == BALKOP) || d == 2 && class == "thousand") {
+	if (d == 2 && class == BALKOP) || (d == 2 && class == "thousand") {
 		ds := strconv.Itoa(d)
 		eBackground(sess, BALDDIR, []string{ds+"_e"})
 	}
@@ -447,26 +451,26 @@ func BalanceMoney(sess *agi.Session, class string, d int) {
 		if d == 1 {
 			eBackground(sess, BALDDIR, []string{BALRUB})
 		}
-		if ((d > 1) && (d <= 4)) {
+		if d > 1 && d <= 4 {
 			eBackground(sess, BALDDIR, []string{BALRUB+"-ja"})
 		}
-		if ((d > 4 && d <= 9) || (d == 0)) {
+		if (d > 4 && d <= 9) || d == 0 {
 			eBackground(sess, BALDDIR, []string{BALRUB+"-i"})
 		}
 	} else if class == BALKOP {
 		if d == 1 {
 			eBackground(sess, BALDDIR, []string{"1-a_kopeika"})
 		}
-		if ((d > 1) && (d <= 4)) {
+		if d > 1 && d <= 4 {
 			eBackground(sess, BALDDIR, []string{BALKOP+"-i"})
 		}
-		if ((d > 4 && d <= 9) || (d == 0)) {
+		if (d > 4 && d <= 9) || d == 0 {
 			eBackground(sess, BALDDIR, []string{BALKOP+"-k"})
 		}
 	} else if class == "thousand" {
 		if d == 1 {
 			eBackground(sess, BALDDIR, []string{"1000"})
-		} else if ((d >= 5) || (d == 0)) {
+		} else if d >= 5 || d == 0 {
 			eBackground(sess, BALDDIR, []string{"1000_ch"})
 		} else {
 			eBackground(sess, BALDDIR, []string{"1000_i"})
