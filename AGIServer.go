@@ -274,41 +274,46 @@ func agiSess(sess *agi.Session) {
 	return
 }
 
-
 func BalanceInfo(sess *agi.Session) {
 	b, err := sess.GetVariable(BALANCE)
 	if err != nil {
 		LoggerErr(err)
+	} else {
+		LoggerString(b.Dat)
 	}
 //	c, err := sess.GetVariable(BALCONTRACT)
-	if err != nil {
-		LoggerErr(err)
-	}
-	bi, err := strconv.Atoi(b.Dat)
+	bi := b.Dat
 	FILES := make([]string, 0)
-	if bi < 0 {
+	if bi < "0" {
+		rex0, err := regexp.Compile(`^\-(\S+)$`)
+		res0 := rex0.FindStringSubmatch(bi)
+		if res0 != nil {
+			bi = res0[1]
+		}
+		if err != nil {
+
+		}
 		FILES = []string{BALNOMONEY, BALONCONRACT, BALMINUS}
 		eBackground(sess, BALDIR, FILES)
-//		bb = fmt.Sprintf("%.2f", bb*(-1))
-	} else if bi > 0 && bi < 500 {
+	} else if bi > "0" && bi < "500" {
 		FILES = []string{BALONCONRACT}
 		eBackground(sess, BALDIR, FILES)
-	} else if bi > 500 {
-		FILES = []string{BALRICH, BALCONTRACT}
+	} else if bi > "500" {
+		FILES = []string{BALRICH, BALONCONRACT}
 		eBackground(sess, BALDIR, FILES)
 	} else {
-		FILES = []string{BALCONTRACT}
+		FILES = []string{BALONCONRACT}
 		eBackground(sess, BALDIR, FILES)
 	}
-	rex, err := regexp.Compile(`^(\d+)\.(\d{2})$`)
+	rex, err := regexp.Compile(`^(\d+).(\d{2})$`)
 	res := rex.FindStringSubmatch(string(bi))
 	if res != nil {
-		rub, err := strconv.Atoi(res[1])
-		kop, err := strconv.Atoi(res[2])
+		rub := res[1]
+		kop := res[2]
 		rex2, err := regexp.Compile(`^0(\d+)$`)
-		res2 := rex2.FindStringSubmatch(string(kop))
+		res2 := rex2.FindStringSubmatch(kop)
 		if res2 != nil {
-			kop, err = strconv.Atoi(res2[1])
+			kop = res2[1]
 		}
 		if err != nil {
 			LoggerErr(err)
@@ -316,21 +321,48 @@ func BalanceInfo(sess *agi.Session) {
 		BalanceDigits(sess, BALRUB, rub)
 		BalanceDigits(sess, BALKOP, kop)
 	}
+	rex3, err := regexp.Compile(`^(\d+).(\d{1})$`)
+	res3 := rex3.FindStringSubmatch(bi)
+	if res3 != nil {
+		rub := res3[1]
+		kop := res3[2]
+		BalanceDigits(sess, BALRUB, rub)
+		BalanceDigits(sess, BALKOP, kop)
+	}
+	rex4, err := regexp.Compile(`^(\d+)$`)
+	res4 := rex4.FindStringSubmatch(bi)
+	if res4 != nil {
+		rub := res4[1]
+		if rub == "0" {
+			FILES = []string{"0", BALRUB+"-i", "0", BALKOP+"-k"}
+			eBackground(sess, BALDDIR, FILES)
+		} else {
+			BalanceDigits(sess, BALRUB, rub)
+		}
+	}
 }
 
 func eBackground(sess *agi.Session, dir string, phrases []string) {
 	for _, phrase := range phrases {
-		sess.Exec("Background", fmt.Sprintf("%s%s", dir, phrase))
+		sess.Verbose("Phrase "+phrase)
+		_, err:= sess.Exec("Background", fmt.Sprintf("%s%s", dir, phrase))
+		if err != nil {
+			LoggerErr(err)
+		}
 	}
 }
 
-func BalanceDigits(sess *agi.Session, class string, d int) {
+func BalanceDigits(sess *agi.Session, class string, dd string) {
+	d, err := strconv.Atoi(dd)
+	if err != nil {
+		LoggerErr(err)
+	}
 	var unity, tens, hundreds, thousand int
-//	fmt.Println(unity)
 	if d >= 1000 && d < 1000000 {
 		thousand = d/1000
 		if class != "thousand" {
-			BalanceDigits(sess, "thousand", thousand)
+			t := strconv.Itoa(thousand)
+			BalanceDigits(sess, "thousand", t)
 		}
 		hundreds = ((d - thousand*1000)/100)*100
 		if hundreds < 1 {
@@ -343,18 +375,19 @@ func BalanceDigits(sess *agi.Session, class string, d int) {
 			tens = (tens/10)*10
 			unity = (d - thousand * 1000 - hundreds - tens)
 		}
-
 		if tens < 10 {
 			tens = 0
 		}
 		if hundreds != 0 {
-			eBackground(sess, BALDDIR, []string{string(hundreds)})
+			h := strconv.Itoa(hundreds)
+			eBackground(sess, BALDDIR, []string{h})
 		}
 		if tens != 0 {
-			eBackground(sess, BALDDIR, []string{string(tens)})
+			t := strconv.Itoa(tens)
+			eBackground(sess, BALDDIR, []string{t})
 		}
 		if unity != 0 {
-			eBackground(sess, BALDDIR, []string{string(unity)})
+			BalanceDigitsUnity(sess, class, unity)
 		}
 		BalanceMoney(sess, class, unity)
 	} else if d >= 100 && d <= 1000 {
@@ -368,30 +401,78 @@ func BalanceDigits(sess *agi.Session, class string, d int) {
 			tens = ((d -hundreds)/10)*10
 			unity = d - hundreds - tens
 		}
-		eBackground(sess, BALDDIR, []string{string(hundreds)})
+		h:= strconv.Itoa(hundreds)
+		eBackground(sess, BALDDIR, []string{h})
 		if tens != 0 {
-			eBackground(sess, BALDDIR, []string{string(tens)})
+			t := strconv.Itoa(thousand)
+			eBackground(sess, BALDDIR, []string{t})
 		}
+		if unity != 0 {
+			BalanceDigitsUnity(sess, class, unity)
+		}
+		BalanceMoney(sess, class, unity)
+	} else if d >= 10 && d < 100 {
+		if d < 20 {
+			tens = d
+			unity = 0
+		} else {
+			tens = (d/10)*10
+			unity = d - tens
+		}
+		t := strconv.Itoa(tens)
+		eBackground(sess, BALDDIR, []string{t})
+		if unity != 0 {
+			BalanceDigitsUnity(sess, class, unity)
+		}
+		BalanceMoney(sess, class, unity)
+	} else if d >= 1 && d < 10 {
+		BalanceDigitsUnity(sess, class, d)
+		BalanceMoney(sess, class, d)
 	}
-}
-
-func BalanceDigitsThousand() {
-
 }
 
 func BalanceDigitsUnity(sess *agi.Session, class string, d int) {
 	if d > 2 || class == BALRUB {
-		eBackground(sess, BALDDIR, []string{string(d)})
+		ds := strconv.Itoa(d)
+		eBackground(sess, BALDDIR, []string{ds})
 	}
 	if ((d == 2 && class == BALKOP) || d == 2 && class == "thousand") {
-		eBackground(sess, BALDDIR, []string{string(d)+"_e"})
+		ds := strconv.Itoa(d)
+		eBackground(sess, BALDDIR, []string{ds+"_e"})
 	}
 }
 
 func BalanceMoney(sess *agi.Session, class string, d int) {
-
+	if class == BALRUB {
+		if d == 1 {
+			eBackground(sess, BALDDIR, []string{BALRUB})
+		}
+		if ((d > 1) && (d <= 4)) {
+			eBackground(sess, BALDDIR, []string{BALRUB+"-ja"})
+		}
+		if ((d > 4 && d <= 9) || (d == 0)) {
+			eBackground(sess, BALDDIR, []string{BALRUB+"-i"})
+		}
+	} else if class == BALKOP {
+		if d == 1 {
+			eBackground(sess, BALDDIR, []string{"1-a_kopeika"})
+		}
+		if ((d > 1) && (d <= 4)) {
+			eBackground(sess, BALDDIR, []string{BALKOP+"-i"})
+		}
+		if ((d > 4 && d <= 9) || (d == 0)) {
+			eBackground(sess, BALDDIR, []string{BALKOP+"-k"})
+		}
+	} else if class == "thousand" {
+		if d == 1 {
+			eBackground(sess, BALDDIR, []string{"1000"})
+		} else if ((d >= 5) || (d == 0)) {
+			eBackground(sess, BALDDIR, []string{"1000_ch"})
+		} else {
+			eBackground(sess, BALDDIR, []string{"1000_i"})
+		}
+	}
 }
-
 
 func BlockedFromPSTN(sess *agi.Session) {
 	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
