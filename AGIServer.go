@@ -40,7 +40,7 @@ var (
 	CONFBRIDGE_MEMBER_ADD string // CONFBRIDGE ADD USERS SOUND
 	LEN_INNER_NUM, LEN_OUTER_NUM string // NUMBERS LENGTH
 	CONFBRIDGES = make(map[string][]map[string]string) // CONNECTED CONFBRIDGES
-	MAILSERVER, MAILPORT, MAILDOMAIN, MAILTO, MAIL string
+	MAILSERVER, MAILPORT, MAILDOMAIN, MAILTO, MAIL, MAILHEADER string
 	BALDIR, BALDDIR, BALANCE, BALCONTRACT, BALNOMONEY, BALONCONRACT, BALMINUS, BALRICH, BALRUB, BALKOP string
 	FAXDIR, FAXRECVSTR string
 	FAXNUMS []string
@@ -76,16 +76,16 @@ type Config struct {
 }
 
 type Balance struct {
-	Dir string
-	DDir string
-	Balance string
-	Contract string
-	FNoMoney string
-	FOnContract string
-	FMinus string
-	FRich string
-	Rub string
-	Kop string
+	Dir 		string
+	DDir 		string
+	Balance 	string
+	Contract 	string
+	FNoMoney 	string
+	FOnContract 	string
+	FMinus 		string
+	FRich 		string
+	Rub 		string
+	Kop 		string
 }
 
 type UserEvents struct {
@@ -97,17 +97,17 @@ type BlockFromPSTN struct {
 }
 
 type Tg struct {
-	Rcp []string
-	Path string
+	Rcp 	[]string
+	Path 	string
 }
 
 type Pg struct {
-	DBPort string
-	DBHost string
-	DBUser string
-	DBPass string
-	DBName string
-	DBSSL string
+	DBPort 	string
+	DBHost 	string
+	DBUser 	string
+	DBPass 	string
+	DBName 	string
+	DBSSL 	string
 }
 
 type Mail struct {
@@ -115,42 +115,43 @@ type Mail struct {
 	Port	string
 	Domain	string
 	Mailto	string
-	Mail string
+	Mail 	string
+	Header 	string
 }
 
 type Fax struct {
-	Dir string
+	Dir 	string
 	RecvStr string
-	Nums []string
+	Nums 	[]string
 }
 
 type Network struct {
-	Allow []string
-	Deny []string
+	Allow 	[]string
+	Deny 	[]string
 }
 
 type AgiServer struct {
-	Host string
-	Port string
+	Host 	string
+	Port 	string
 }
 
 type Confbridge struct {
-	Df string
-	OutPeer string
-	Context string
-	AdminMenu string
-	UserMenu string
-	AddMember string
-	Conferences string
-	PlayMemberAdd string
-	LengthInnerNum string
-	LengthOuterNum string
+	Df 		string
+	OutPeer 	string
+	Context 	string
+	AdminMenu 	string
+	UserMenu 	string
+	AddMember 	string
+	Conferences 	string
+	PlayMemberAdd 	string
+	LengthInnerNum 	string
+	LengthOuterNum 	string
 }
 
 type Callback struct {
-	DstDir string
-	Query string
-	Set string
+	DstDir 	string
+	Query 	string
+	Set 	string
 }
 
 type Service struct {
@@ -526,7 +527,6 @@ func FaxRecv(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	} else {
-//		if isValueInList(sess.Env["dnid"], FAXNUMS) {
 		fs, err := sess.GetVariable("FAXSTATUS")
 		fp, err := sess.GetVariable("FAXPAGES")
 		fb, err := sess.GetVariable("FAXBITRATE")
@@ -536,10 +536,9 @@ func FaxRecv(sess *agi.Session) {
 		}
 		msg := fmt.Sprintf("Статус: %s\nС номера: %s\nНа номер: %s\nКоличество страниц: %s\nСкорость передачи(bitrate): %s\nРазрешение файла: %s",
 			fs.Dat, sess.Env["callerid"], sess.Env["dnid"], fp.Dat, fb.Dat, fr.Dat)
-		NotifyMail("ФаксВходящий", msg, MAIL)
-		NotifyMail("ФаксВходящий", msg, "fax-"+sess.Env["dnid"])
+		NotifyMail("ФаксВходящий", sess.Env["callerid"], msg, MAIL)
+		NotifyMail("ФаксВходящий", sess.Env["callerid"], msg, "fax-"+sess.Env["dnid"])
 		NotifyTG(msg)
-//		}
 	}
 	sess.Hangup()
 }
@@ -675,7 +674,9 @@ func ConfBridgeConfs(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	}
-	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"], UMENU))
+	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", sess.Env["channel"], CONFBRIDGE_CONTEXT, sess.Env["extension"]))
+
+//	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"], UMENU))
 	if err != nil {
 		LoggerErr(err)
 	}
@@ -931,10 +932,11 @@ func pgArrayToSlice(array string) []string {
     return results
 }
 
-func NotifyMail(subj string, message string, mailto string) {
+func NotifyMail(action string, category string, message string, mailto string) {
 	hname, err := os.Hostname()
 	subj_hname := fmt.Sprintf("[%s]", strings.ToUpper(hname))
-	subj_text := fmt.Sprintf("[%s]", strings.ToUpper(subj))
+	subj_category := fmt.Sprintf("[%s]", strings.ToUpper(category))
+	subj_action := fmt.Sprintf("[%s]", action)
 	c, err := smtp.Dial(fmt.Sprintf("%s:%s", MAILSERVER, MAILPORT))
 	if err != nil {
 		LoggerString("Error: Cant connect to Mail server")
@@ -946,8 +948,8 @@ func NotifyMail(subj string, message string, mailto string) {
 		if err != nil {
 			LoggerErr(err)
 		}
-		msg := []byte(fmt.Sprintf("Content-Type: text/plain; charset=\"utf-8\"%sTo: %s@%s%sSubject: %s%s%s%s%s%s",
-			_LT, mailto, MAILDOMAIN, _LT, subj_hname, subj_text, _LT, _LT, message, _LT))
+		msg := []byte(fmt.Sprintf(MAILHEADER,
+			_LT, mailto, MAILDOMAIN, _LT, subj_hname, subj_action, subj_category, _LT, _LT, message, _LT))
 		_, err = wc.Write(msg)
 		defer wc.Close()
 		LoggerString(string(msg))
@@ -1008,6 +1010,7 @@ func init() {
 	MAILDOMAIN = conf.Mail.Domain
 	MAILTO = conf.Mail.Mailto
 	MAIL = conf.Mail.Mail
+	MAILHEADER = conf.Mail.Header
 
 	FAXDIR = conf.Fax.Dir
 	FAXRECVSTR = conf.Fax.RecvStr
