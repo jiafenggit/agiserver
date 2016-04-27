@@ -395,7 +395,7 @@ func BalanceDigits(sess *agi.Session, class string, dd string) {
 			BalanceDigitsUnity(sess, class, unity)
 		}
 		BalanceMoney(sess, class, unity)
-	} else if d >= 100 && d <= 1000 {
+	} else if d >= 100 && d < 1000 {
 		hundreds = (d/100)*100
 		if (d - hundreds) < 10 {
 			tens = 0
@@ -403,13 +403,13 @@ func BalanceDigits(sess *agi.Session, class string, dd string) {
 		} else if (d - hundreds) > 10 && (d - hundreds) < 20 {
 			tens = d - hundreds
 		} else {
-			tens = ((d -hundreds)/10)*10
+			tens = ((d - hundreds)/10)*10
 			unity = d - hundreds - tens
 		}
 		h:= strconv.Itoa(hundreds)
 		eBackground(sess, BALDDIR, []string{h})
 		if tens != 0 {
-			t := strconv.Itoa(thousand)
+			t := strconv.Itoa(tens)
 			eBackground(sess, BALDDIR, []string{t})
 		}
 		if unity != 0 {
