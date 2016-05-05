@@ -14,7 +14,11 @@ import (
 	"strings"
 	"net/smtp"
 	"os/signal"
+	"crypto/md5"
+	"crypto/aes"
 	"database/sql"
+	"encoding/hex"
+	"crypto/cipher"
 	"encoding/json"
 	"github.com/zaf/agi"
 	_ "github.com/lib/pq"
@@ -30,7 +34,7 @@ const (
 )
 
 var (
-	LOGPATH = "/var/log/asterisk/AGISERVER_log"
+	LOGPATH = ""
 	ALLOW, DENY []string //ALLOW, DENY NETWORKS
 	DBPass, DBName, DBHost, DBPort, DBUser, DBSSL string
 	CONFBRIDGE_FEATURES string //CONFBRIDGE DYNAMIC FEATURES
@@ -66,6 +70,7 @@ type Config struct {
 	Pg Pg
 	Fax Fax
 	Mail Mail
+	LogDir LogDir
 	Balance Balance
 	Network Network
 	Callback Callback
@@ -73,6 +78,10 @@ type Config struct {
 	Confbridge Confbridge
 	UserEvents UserEvents
 	BlockFromPSTN BlockFromPSTN
+}
+
+type LogDir struct {
+	Path string
 }
 
 type Balance struct {
@@ -219,7 +228,6 @@ func getAstEnv() map[string]string {
 	return env
 }
 
-// Start the AGI or FastAGI session.
 func spawnAgi(c net.Conn) {
 	myAgi := agi.New()
 	var err error
@@ -864,18 +872,6 @@ func NotifyTG(tg_msg string) {
 	}
 }
 
-/*
-func sqlConn() *sql.DB {
-	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		DBHost, DBPort, DBUser, DBPass, DBName, DBSSL)
-	db, err := sql.Open("postgres", dbinfo)
-	if (err != nil) {
-		LoggerErr(err)
-	}
-	return db
-}
-*/
-
 func sqlPut(query string) {
 	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		DBHost, DBPort, DBUser, DBPass, DBName, DBSSL)
@@ -965,17 +961,50 @@ func NotifyMail(action string, category string, message string, mailto string) {
 	defer c.Close()
 }
 
-func init() {
-	file, e1 := os.Open("/etc/asterisk/asterisk_config.json")
-	if e1 != nil {
-		fmt.Println("Error: ", e1)
-	}
-	decoder := json.NewDecoder(file)
-	conf := Config{}
-	err := decoder.Decode(&conf)
+func decrypt(cipherstring string, keystring string) []byte {
+	ciphertext := []byte(cipherstring)
+	key := []byte(keystring)
+	block, err := aes.NewCipher(key)
 	if err != nil {
-		fmt.Println("Error: ", err)
+		panic(err)
 	}
+	if len(ciphertext) < aes.BlockSize {
+		panic("Text is too short")
+	}
+	iv := ciphertext[:aes.BlockSize]
+	ciphertext = ciphertext[aes.BlockSize:]
+	stream := cipher.NewCFBDecrypter(block, iv)
+	stream.XORKeyStream(ciphertext, ciphertext)
+	return ciphertext
+}
+
+func init() {
+	k := os.Getenv("ASTCONFIG")
+	f, err := os.Open(os.Getenv("ASTCONF"))
+
+	if err != nil {
+		LoggerString(err.Error())
+	}
+	data := make([]byte, 10000)
+	count, err := f.Read(data)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	hasher := md5.New()
+    	hasher.Write([]byte(k))
+    	key := hex.EncodeToString(hasher.Sum(nil))
+
+	content := string(data[:count])
+	df := decrypt(content, key)
+	c := bytes.NewReader(df)
+	decoder := json.NewDecoder(c)
+	conf := Config{}
+	err = decoder.Decode(&conf)
+	if err != nil {
+		LoggerString(err.Error())
+	}
+
 	ALLOW = conf.Network.Allow
 	DENY = conf.Network.Deny
 	CONFBRIDGE_FEATURES = conf.Confbridge.Df
@@ -1030,6 +1059,8 @@ func init() {
 	BALRUB = conf.Balance.Rub
 	BALKOP = conf.Balance.Kop
 
+	LOGPATH = conf.LogDir.Path
+
 	stdlog = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	errlog = log.New(os.Stderr, "", log.Ldate|log.Ltime)
 	NotifyTG("Start/Restart " + _DN + " " + _DD)
@@ -1050,11 +1081,9 @@ func main() {
 	fmt.Println(status)
 }
 
-//DEBUG
-
 func LoggerMap(s map[string]string) {
   	tf := timeFormat()
-	f, _ := os.OpenFile(LOGPATH, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	f, _ := os.OpenFile(LOGPATH+_DN, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
  	log.SetOutput(f)
   	log.Print(tf)
   	log.Print(s)
@@ -1063,43 +1092,38 @@ func LoggerMap(s map[string]string) {
 
 func LoggerString(s string) {
 	tf := timeFormat()
-	f, _ := os.OpenFile(LOGPATH, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	f, _ := os.OpenFile(LOGPATH+_DN, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 	log.SetOutput(f)
 	log.Print(tf)
 	log.Print(s)
-	fmt.Println(s)
 }
 
 func LoggerAGI(s *agi.Session) {
 	tf := timeFormat()
-	f, _ := os.OpenFile(LOGPATH, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	f, _ := os.OpenFile(LOGPATH+_DN, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 	log.SetOutput(f)
 	log.Print(tf)
 	log.Print(s)
-	fmt.Println(s)
 }
 
 func LoggerAGIReply(s agi.Reply) {
 	tf := timeFormat()
-	f, _ := os.OpenFile(LOGPATH, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	f, _ := os.OpenFile(LOGPATH+_DN, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 	log.SetOutput(f)
 	log.Print(tf)
 	log.Print(s)
-	fmt.Println(s)
 }
 
 func LoggerMapMap(m map[string][]map[string]string) {
-	f, _ := os.OpenFile(LOGPATH, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	f, _ := os.OpenFile(LOGPATH+_DN, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 	log.SetOutput(f)
 	log.Print(m)
-	fmt.Println(m)
 }
 
 func LoggerErr(e error) {
-	f, _ := os.OpenFile(LOGPATH, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	f, _ := os.OpenFile(LOGPATH+_DN, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 	log.SetOutput(f)
 	log.Print(e)
-	fmt.Println(e)
 }
 
 func timeFormat() (string) {
