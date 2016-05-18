@@ -295,32 +295,34 @@ func BalanceInfo(sess *agi.Session) {
 	}
 	sess.Verbose(fmt.Sprintf("BALANCE: %s %s %s", b.Dat, c.Dat, sess.Env["callerid"]))
 	LoggerString(fmt.Sprintf("BALANCE: %s %s %s", b.Dat, c.Dat, sess.Env["callerid"]))
-	bi := b.Dat
+	bi, err := strconv.Atoi(b.Dat)
+	sess.Verbose("BALANCE TO INT")
+	bif, err := strconv.ParseFloat(b.Dat, 64)
+	sess.Verbose(bi)
+	sess.Verbose(bif)
 	FILES := make([]string, 0)
-	if bi < "0" {
-		rex0, err := regexp.Compile(`^\-(\S+)$`)
-		res0 := rex0.FindStringSubmatch(bi)
-		if res0 != nil {
-			bi = res0[1]
-		}
-		if err != nil {
-
-		}
+	if bif < 0 {
+		sess.Verbose("< 0")
 		FILES = []string{BALNOMONEY, BALONCONRACT, BALMINUS}
 		eBackground(sess, BALDIR, FILES)
-	} else if bi > "0" && bi < "500" {
+	} else if bif > 0 && bif < 500 {
+		sess.Verbose("0 > < 500")
 		FILES = []string{BALONCONRACT}
 		eBackground(sess, BALDIR, FILES)
-	} else if bi > "500" {
+	} else if bif > 500 {
+		sess.Verbose("> 500")
 		FILES = []string{BALRICH, BALONCONRACT}
 		eBackground(sess, BALDIR, FILES)
 	} else {
+		sess.Verbose("ELSE")
 		FILES = []string{BALONCONRACT}
 		eBackground(sess, BALDIR, FILES)
 	}
-	rex, err := regexp.Compile(`^(\d+).(\d{2})\d*$`)
-	res := rex.FindStringSubmatch(string(bi))
+	bii := strconv.FormatFloat(bif, 'g', 10, 64)
+	rex, err := regexp.Compile(`^(\d+)\.(\d{2})\d*$`)
+	res := rex.FindStringSubmatch(bii)
 	if res != nil {
+		sess.Verbose(res[1]+ " " + res[2])
 		rub := res[1]
 		kop := res[2]
 		rex2, err := regexp.Compile(`^0(\d+)$`)
@@ -334,17 +336,19 @@ func BalanceInfo(sess *agi.Session) {
 		BalanceDigits(sess, BALRUB, rub)
 		BalanceDigits(sess, BALKOP, kop)
 	}
-	rex3, err := regexp.Compile(`^(\d+).(\d{1})$`)
-	res3 := rex3.FindStringSubmatch(bi)
+	rex3, err := regexp.Compile(`^(\d+)\.(\d{1})$`)
+	res3 := rex3.FindStringSubmatch(bii)
 	if res3 != nil {
+		sess.Verbose(res3[1]+ " " + res3[2])
 		rub := res3[1]
 		kop := res3[2]
 		BalanceDigits(sess, BALRUB, rub)
 		BalanceDigits(sess, BALKOP, kop)
 	}
 	rex4, err := regexp.Compile(`^(\d+)$`)
-	res4 := rex4.FindStringSubmatch(bi)
+	res4 := rex4.FindStringSubmatch(bii)
 	if res4 != nil {
+		sess.Verbose(res4[1])
 		rub := res4[1]
 		if rub == "0" {
 			FILES = []string{"0", BALRUB+"-i", "0", BALKOP+"-k"}
@@ -353,6 +357,36 @@ func BalanceInfo(sess *agi.Session) {
 			BalanceDigits(sess, BALRUB, rub)
 		}
 	}
+	rex5, err := regexp.Compile(`^\-(\d+)\.(\d{2})\d*$`)
+	res5 := rex5.FindStringSubmatch(bii)
+	if res5 != nil {
+		sess.Verbose(res5[1]+ " " + res5[2])
+		rub := res5[1]
+		kop := res5[2]
+		rex55, err := regexp.Compile(`^0(\d+)$`)
+		res55 := rex55.FindStringSubmatch(kop)
+		if res55 != nil {
+			kop = res55[1]
+		}
+		if err != nil {
+			LoggerErr(err)
+		}
+		BalanceDigits(sess, BALRUB, rub)
+		BalanceDigits(sess, BALKOP, kop)
+	}
+	rex6, err := regexp.Compile(`^\-(\d+)$`)
+	res6 := rex6.FindStringSubmatch(bii)
+	if res6 != nil {
+		sess.Verbose(res6[1])
+		rub := res6[1]
+		if rub == "0" {
+			FILES = []string{"0", BALRUB+"-i", "0", BALKOP+"-k"}
+			eBackground(sess, BALDDIR, FILES)
+		} else {
+			BalanceDigits(sess, BALRUB, rub)
+		}
+	}
+
 }
 
 func eBackground(sess *agi.Session, dir string, phrases []string) {
