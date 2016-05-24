@@ -576,6 +576,9 @@ func FaxRecv(sess *agi.Session) {
 		if err != nil {
 			LoggerErr(err)
 		}
+		if fs.Dat == "" || fs.Dat == "FAILED" {
+			fs.Dat = "FAILED"
+		}
 		msg := fmt.Sprintf("Статус: %s\nС номера: %s\nНа номер: %s\nКоличество страниц: %s\nСкорость передачи(bitrate): %s\nРазрешение файла: %s",
 			fs.Dat, sess.Env["callerid"], sess.Env["dnid"], fp.Dat, fb.Dat, fr.Dat)
 		NotifyMail("ФаксВходящий", sess.Env["callerid"], msg, MAIL)
