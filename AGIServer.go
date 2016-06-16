@@ -31,6 +31,7 @@ const (
 	_DN 		= "agiserver"
 	_DD	 	= "AGIServer"
 	_LT		= "\x0D\x0A"
+	_KVT 		= ":"
 )
 
 var (
@@ -50,6 +51,7 @@ var (
 	FAXNUMS []string
 	OUTPEER string
 	AGIHOST, AGIPORT string
+	AMIhost, AMIuser, AMIpass, AMIport string
 	AMENU, UMENU string //CONFBRIDGE MENUS
 	stdlog, errlog *log.Logger
 	TG []string
@@ -68,6 +70,7 @@ var (
 type Config struct {
 	Tg Tg
 	Pg Pg
+	Ami Ami
 	Fax Fax
 	Mail Mail
 	LogDir LogDir
@@ -78,6 +81,13 @@ type Config struct {
 	Confbridge Confbridge
 	UserEvents UserEvents
 	BlockFromPSTN BlockFromPSTN
+}
+
+type Ami struct {
+	RemotePort string
+	RemoteHost string
+	Username   string
+	Password   string
 }
 
 type LogDir struct {
@@ -620,26 +630,77 @@ func CallbackCall(sess *agi.Session) {
 	}
 }
 
+func RedirectChan(mm map[string]string) {
+	LoggerMap(mm)
+	var r = make(map[string]string)
+	r["Action"] = "BlindTransfer"
+	r["Channel"] = mm["Channel"]
+	r["Exten"] = mm["Exten"]
+	r["Context"] = mm["Context"]
+	amiAction(r)
+}
+
+func chRedirect(ch string, sess *agi.Session) {
+	confno, err := sess.GetVariable("CONFNO")
+	if err != nil {
+		LoggerErr(err)
+	}
+	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", ch, CONFBRIDGE_CONTEXT, confno.Dat))
+	if err != nil {
+		LoggerErr(err)
+	}
+}
+
 //test 1
 func ConfBridgeChannelRedirect(sess *agi.Session) {
 	confno, err := sess.GetVariable("CONFNO")
 	if err != nil {
 		LoggerErr(err)
+	} else {
+		if confno.Dat == sess.Env["callerid"] {
+			bridgepeer, err := sess.GetVariable("BRIDGEPEER")
+			if err != nil {
+				LoggerErr(err)
+			}
+			var rc1 = make(map[string]string)
+			rc1["Channel"] = sess.Env["channel"]
+			rc1["Exten"] = confno.Dat
+			rc1["Context"] = CONFBRIDGE_CONTEXT
+			var rc2 = make(map[string]string)
+			rc2["Channel"] = bridgepeer.Dat
+			rc2["Exten"] = confno.Dat
+			rc2["Context"] = CONFBRIDGE_CONTEXT
+			//	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", confno.Dat, AMENU))
+			//	chRedirect(sess.Env["channel"], sess)
+			//	chRedirect(bridgepeer.Dat, sess)
+			RedirectChan(rc1)
+			RedirectChan(rc2)
+			LoggerString(fmt.Sprintf("Try create Confbridge CONFNO %s Channel1 %s Channel2 %s",
+				confno.Dat, sess.Env["channel"], bridgepeer.Dat))
+		}
 	}
-	bridgepeer, err := sess.GetVariable("BRIDGEPEER")
-	if err != nil {
-		LoggerErr(err)
-	}
+
+//	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", bridgepeer.Dat, CONFBRIDGE_CONTEXT, confno.Dat))
+//	if err != nil {
+//		LoggerErr(err)
+//	}
+//	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", confno.Dat, AMENU))
+//	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", bridgepeer.Dat, CONFBRIDGE_CONTEXT, confno.Dat))
+//	if err != nil {
+//		LoggerErr(err)
+//	}
+//	_, err = sess.Exec("Goto", fmt.Sprintf("%s,%s,1", CONFBRIDGE_CONTEXT, confno.Dat))
+//	if err != nil {
+//		LoggerErr(err)
+//	}
+
+/*
 	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", sess.Env["channel"], CONFBRIDGE_CONTEXT, confno.Dat))
 	if err != nil {
 		LoggerErr(err)
 	}
-	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", bridgepeer.Dat, CONFBRIDGE_CONTEXT, confno.Dat))
-	if err != nil {
-		LoggerErr(err)
-	}
-	LoggerString(fmt.Sprintf("Try create Confbridge CONFNO %s Channel1 %s Channel2 %s",
-		confno.Dat, sess.Env["channel"], bridgepeer.Dat))
+*/
+
 }
 
 //test 2
@@ -672,6 +733,17 @@ func ConfBridgeAccess(sess *agi.Session) {
 	LoggerString("Confbridge Admin " + sess.Env["extension"])
 }
 
+func OriginateAction(mm map[string]string) {
+	LoggerMap(mm)
+	var r = make(map[string]string)
+	r["Action"] = "Originate"
+	r["Channel"] = mm["Channel"]
+	r["Exten"] = mm["Exten"]
+	r["Context"] = mm["Context"]
+	r["Priority"] = mm["Priority"]
+	amiAction(r)
+}
+
 //test 3
 func ConfBridgeAddMembers(sess *agi.Session) {
 	_, err := sess.Exec("Read", "DST," + CONFBRIDGE_MEMBER_ADD + ",maxdigits,,2,12")
@@ -690,10 +762,16 @@ func ConfBridgeAddMembers(sess *agi.Session) {
 		inner_num, err := strconv.Atoi(LEN_INNER_NUM)
 		outer_num, err := strconv.Atoi(LEN_OUTER_NUM)
 		if len(dst.Dat) == inner_num {
+			var o = make(map[string]string)
+			o["Channel"] = "SIP/"+dst.Dat
+			o["Exten"] = "exten"
+			o["Context"] = CONFBRIDGE_CONFS
+			o["Priority"] = "1"
 			_, err = sess.Exec("Originate",
 				fmt.Sprintf("SIP/%s,exten,%s,%s,1", dst.Dat, CONFBRIDGE_CONFS, callerid))
 		} else if len(dst.Dat) == outer_num {
 			_, err := sess.SetVariable("CALLERID(num)", OUTPEER)
+
 			_, err = sess.Exec("Originate",
 				fmt.Sprintf("SIP/%s@%s,exten,%s,%s,1", dst.Dat, OUTPEER, CONFBRIDGE_CONFS, callerid))
 			if err != nil {
@@ -719,9 +797,10 @@ func ConfBridgeConfs(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	}
-	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", sess.Env["channel"], CONFBRIDGE_CONTEXT, sess.Env["extension"]))
 
-//	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"], UMENU))
+//	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", sess.Env["channel"], CONFBRIDGE_CONTEXT, sess.Env["extension"]))
+
+	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"], UMENU))
 	if err != nil {
 		LoggerErr(err)
 	}
@@ -789,7 +868,7 @@ func BanIpFromPSTN(sess *agi.Session) {
 		LoggerString("SIPURI " + sipuri.Dat)
 	}
 	var BAN = make(map[string]string)
-	rex, err := regexp.Compile(`^sip:(\S+)\@(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\:(\S+)$`)
+	rex, err := regexp.Compile(`^sip:(\S*)\@(\S*)\:(\S*)$`)
 	res := rex.FindStringSubmatch(sipuri.Dat)
 	if res != nil {
 		BAN["num"] = res[1]
@@ -803,7 +882,7 @@ func BanIpFromPSTN(sess *agi.Session) {
 		BAN["ip"] = res1[1]
 		BAN["port"] = ""
 	}
-	rex2, err := regexp.Compile(`^sip:(\S+)\@(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$`)
+	rex2, err := regexp.Compile(`^sip:(\S*)\@(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$`)
 	res2 := rex2.FindStringSubmatch(sipuri.Dat)
 	if res2 != nil {
 		BAN["num"] = res2[1]
@@ -814,11 +893,19 @@ func BanIpFromPSTN(sess *agi.Session) {
 	if err != nil {
 		LoggerString("ERR")
 	}
-	checkIP(BAN["ip"])
+	checkIP(BAN["ip"], sess)
 }
 
 //test
-func checkIP(ipip string) {
+func checkIP(ipip string, sess *agi.Session) {
+	useragent, err := sess.GetVariable("CHANNEL(useragent)")
+	if err != nil {
+		LoggerErr(err)
+	}
+	sipuri, err := sess.GetVariable("SIPURI")
+	if err != nil {
+		LoggerErr(err)
+	}
 	anet := false;
 	cip := net.ParseIP(ipip)
 	for _, iprange := range ALLOW {
@@ -829,6 +916,9 @@ func checkIP(ipip string) {
 		for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
 			if ip.String() == cip.String() {
 				LoggerString("IP FROM ALLOW NETWORK " + ip.String())
+				msg := fmt.Sprintf("User Agent: %s\nSIPURI: %s\nExtension: %s\nCallerid: %s",
+					useragent.Dat, sipuri.Dat, sess.Env["extension"], sess.Env["callerid"])
+				NotifyTG(msg)
 				anet = true
 				return
 			}
@@ -922,6 +1012,26 @@ func sqlPut(query string) {
 	}
 	result.LastInsertId()
 	db.Close()
+}
+
+func amiAction(mm map[string]string) {
+	LoggerMap(mm)
+	conn, _ := net.Dial("tcp", fmt.Sprintf("%s:%s", AMIhost, AMIport))
+	fmt.Fprintf(conn, fmt.Sprintf("Action: Login%s", _LT))
+	fmt.Fprintf(conn, fmt.Sprintf("Username: %s%s", AMIuser, _LT))
+	fmt.Fprintf(conn, fmt.Sprintf("Secret: %s%s%s", AMIpass, _LT, _LT))
+	buf := bytes.NewBufferString("")
+	for k, v := range mm {
+		buf.Write([]byte(k))
+		buf.Write([]byte(_KVT))
+		buf.Write([]byte(v))
+		buf.Write([]byte(_LT))
+		LoggerString(k)
+		LoggerString(v)
+	}
+	buf.Write([]byte(_LT))
+	fmt.Fprintf(conn, buf.String())
+	fmt.Fprintf(conn, "Action: Logoff"+_LT+_LT)
 }
 
 func sqlGetArray(query string) []string {
@@ -1041,6 +1151,11 @@ func init() {
 	if err != nil {
 		LoggerString(err.Error())
 	}
+
+	AMIport = conf.Ami.RemotePort
+	AMIhost = conf.Ami.RemoteHost
+	AMIuser = conf.Ami.Username
+	AMIpass = conf.Ami.Password
 
 	ALLOW = conf.Network.Allow
 	DENY = conf.Network.Deny
