@@ -714,7 +714,7 @@ func ConfBridgeAccess(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	}
-	if sess.Env["extension"] == sess.Env["callerid"] {
+	if sess.Env["extension"] == sess.Env["callerid"] + "0" {
 		inner_num, err := strconv.Atoi(LEN_INNER_NUM)
 		if len(sess.Env["callerid"]) == inner_num {
 			_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"], AMENU))
