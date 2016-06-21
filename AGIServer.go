@@ -593,7 +593,7 @@ func FaxRecv(sess *agi.Session) {
 			fs.Dat, sess.Env["callerid"], sess.Env["dnid"], fp.Dat, fb.Dat, fr.Dat)
 		NotifyMail("ФаксВходящий", sess.Env["callerid"], msg, MAIL)
 		NotifyMail("ФаксВходящий", sess.Env["callerid"], msg, "fax-"+sess.Env["dnid"])
-		NotifyTG(msg)
+//		NotifyTG(msg)
 	}
 	sess.Hangup()
 }
