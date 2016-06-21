@@ -800,7 +800,7 @@ func ConfBridgeConfs(sess *agi.Session) {
 
 //	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", sess.Env["channel"], CONFBRIDGE_CONTEXT, sess.Env["extension"]))
 
-	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"], UMENU))
+	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"] + "0", UMENU))
 	if err != nil {
 		LoggerErr(err)
 	}
