@@ -657,7 +657,7 @@ func ConfBridgeChannelRedirect(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	} else {
-		if confno.Dat == sess.Env["callerid"] {
+		if confno.Dat == sess.Env["callerid"] + "0" {
 			bridgepeer, err := sess.GetVariable("BRIDGEPEER")
 			if err != nil {
 				LoggerErr(err)
@@ -706,7 +706,7 @@ func ConfBridgeChannelRedirect(sess *agi.Session) {
 //test 2
 func ConfBridgeAccess(sess *agi.Session) {
 	sess.Answer()
-	_, err := sess.SetVariable("__CONFNO", sess.Env["extension"])
+	_, err := sess.SetVariable("__CONFNO", sess.Env["extension"] + "0")
 	if err != nil {
 		LoggerErr(err)
 	}
@@ -793,7 +793,7 @@ func ConfBridgeConfs(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	}
-	_, err = sess.SetVariable("__CONFNO", sess.Env["extension"])
+	_, err = sess.SetVariable("__CONFNO", sess.Env["extension"] + "0")
 	if err != nil {
 		LoggerErr(err)
 	}
