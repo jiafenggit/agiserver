@@ -777,8 +777,7 @@ func ConfBridgeAddMembers(sess *agi.Session) {
 //			_, err = sess.Exec("Originate",
 //				fmt.Sprintf("SIP/%s,exten,%s,%s,1", dst.Dat, CONFBRIDGE_CONFS, callerid))
 		} else if len(dst.Dat) == outer_num {
-//			_, err := sess.SetVariable("CALLERID(num)", OUTPEER)
-//			_, err := sess.SetVariable("CALLERID(num)", OUTPEER)
+			_, err := sess.SetVariable("CALLERID(num)", OUTPEER)
 
 //			_, err = sess.Exec("Originate",
 //				fmt.Sprintf("SIP/%s@%s,exten,%s,%s,1", dst.Dat, OUTPEER, CONFBRIDGE_CONFS, callerid))
