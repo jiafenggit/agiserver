@@ -669,7 +669,7 @@ func ConfBridgeChannelRedirect(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	} else {
-		if confno.Dat == sess.Env["callerid"] + "0" {
+		if confno.Dat == sess.Env["callerid"] {
 			bridgepeer, err := sess.GetVariable("BRIDGEPEER")
 			if err != nil {
 				LoggerErr(err)
@@ -718,7 +718,7 @@ func ConfBridgeChannelRedirect(sess *agi.Session) {
 //test 2
 func ConfBridgeAccess(sess *agi.Session) {
 	sess.Answer()
-	_, err := sess.SetVariable("__CONFNO", sess.Env["extension"] + "0")
+	_, err := sess.SetVariable("__CONFNO", sess.Env["extension"])
 	if err != nil {
 		LoggerErr(err)
 	}
@@ -726,7 +726,7 @@ func ConfBridgeAccess(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	}
-	if sess.Env["extension"] == sess.Env["callerid"] + "0" {
+	if sess.Env["extension"] == sess.Env["callerid"] {
 		inner_num, err := strconv.Atoi(LEN_INNER_NUM)
 		if len(sess.Env["callerid"]) == inner_num {
 			_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"], AMENU))
@@ -800,14 +800,14 @@ func ConfBridgeConfs(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	}
-	_, err = sess.SetVariable("__CONFNO", sess.Env["extension"] + "0")
+	_, err = sess.SetVariable("__CONFNO", sess.Env["extension"])
 	if err != nil {
 		LoggerErr(err)
 	}
 
 //	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", sess.Env["channel"], CONFBRIDGE_CONTEXT, sess.Env["extension"]))
 
-	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"] + "0", UMENU))
+	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"], UMENU))
 	if err != nil {
 		LoggerErr(err)
 	}
