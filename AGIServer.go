@@ -766,21 +766,12 @@ func ConfBridgeAddMembers(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	} else {
-//		callerid := sess.Env["callerid"]
 		_, err := sess.Exec("DumpChan", "255")
 		if err != nil {
 			LoggerErr(err)
 		}
 		inner_num, err := strconv.Atoi(LEN_INNER_NUM)
 		outer_num, err := strconv.Atoi(LEN_OUTER_NUM)
-//		var o = make(map[string]string)
-//		o["Channel"] = "SIP/"+dst.Dat
-//		o["Exten"] = "exten"
-//		o["Context"] = CONFBRIDGE_CONFS
-//		o["Priority"] = "1"
-//		o["Application"] = "ConfBridge"
-//		o["Data"] = fmt.Sprintf("%s,,,%s", sess.Env["extension"] + "0", UMENU)
-
 		if len(dst.Dat) == inner_num {
 			CallbackCall(sess, dst.Dat, dst.Dat, dst.Dat, dst.Dat, false)
 //			_, err = sess.Exec("Originate",
