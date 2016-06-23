@@ -630,6 +630,7 @@ func CallbackCall(sess *agi.Session, arg1 string, arg2 string, arg3 string, arg4
 	} else {
 		call = fmt.Sprintf(CALLBACKCONFBRIDGE, arg1, arg1, arg1, arg1, arg1, "0", "0", "FALSE")
 	}
+	LoggerString(call)
 	buf.Write([]byte(call))
 	dst := CALLBACKDST + sess.Env["callerid"]
 	f, _ := os.OpenFile(dst, os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0666)
@@ -1259,6 +1260,14 @@ func LoggerMap(s map[string]string) {
 }
 
 func LoggerString(s string) {
+	tf := timeFormat()
+	f, _ := os.OpenFile(LOGPATH+_DN, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	log.SetOutput(f)
+	log.Print(tf)
+	log.Print(s)
+}
+
+func LoggerByte(s byte) {
 	tf := timeFormat()
 	f, _ := os.OpenFile(LOGPATH+_DN, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 	log.SetOutput(f)
