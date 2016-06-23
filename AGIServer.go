@@ -761,16 +761,20 @@ func ConfBridgeAddMembers(sess *agi.Session) {
 		}
 		inner_num, err := strconv.Atoi(LEN_INNER_NUM)
 		outer_num, err := strconv.Atoi(LEN_OUTER_NUM)
+		var o = make(map[string]string)
+		o["Channel"] = "SIP/"+dst.Dat
+		o["Exten"] = "exten"
+		o["Context"] = CONFBRIDGE_CONFS
+		o["Priority"] = "1"
+		o["Application"] = "ConfBridge"
+		o["Data"] = fmt.Sprintf("%s,,,%s", sess.Env["extension"] + "0", UMENU)
+
 		if len(dst.Dat) == inner_num {
-			var o = make(map[string]string)
-			o["Channel"] = "SIP/"+dst.Dat
-			o["Exten"] = "exten"
-			o["Context"] = CONFBRIDGE_CONFS
-			o["Priority"] = "1"
+//			amiAction(o)
 			_, err = sess.Exec("Originate",
 				fmt.Sprintf("SIP/%s,exten,%s,%s,1", dst.Dat, CONFBRIDGE_CONFS, callerid))
 		} else if len(dst.Dat) == outer_num {
-			_, err := sess.SetVariable("CALLERID(num)", OUTPEER)
+//			_, err := sess.SetVariable("CALLERID(num)", OUTPEER)
 
 			_, err = sess.Exec("Originate",
 				fmt.Sprintf("SIP/%s@%s,exten,%s,%s,1", dst.Dat, OUTPEER, CONFBRIDGE_CONFS, callerid))
