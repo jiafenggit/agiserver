@@ -62,7 +62,7 @@ var (
     	quotedValue = fmt.Sprintf("\"(%s)*\"", quotedChar)
 	arrayValue = fmt.Sprintf("(?P<value>(%s|%s))", unquotedValue, quotedValue)
 	arrayExp = regexp.MustCompile(fmt.Sprintf("((%s)(,)?)", arrayValue))
-	CALLBACKDST, CALLBACKQUERY, CALLBACKSET string
+	CALLBACKDST, CALLBACKQUERY, CALLBACKSET, CALLBACKCONFBRIDGE string
 	BLOCKPSTNQUERY string
 	UEBLOCKEDABON string
 )
@@ -171,6 +171,7 @@ type Callback struct {
 	DstDir 	string
 	Query 	string
 	Set 	string
+	SetConfbridge string
 }
 
 type Service struct {
@@ -276,7 +277,8 @@ func agiSess(sess *agi.Session) {
 		case "confbridge_confs" :
 			ConfBridgeConfs(sess)
 		case "callback_call" :
-			CallbackCall(sess)
+//			CallbackCall(sess)
+			CallbackCheck(sess)
 		case "fax_receive" :
 			FaxRecv(sess)
 		case "blocked_from_pstn" :
@@ -598,7 +600,7 @@ func FaxRecv(sess *agi.Session) {
 	sess.Hangup()
 }
 
-func CallbackCall(sess *agi.Session) {
+func CallbackCheck(sess *agi.Session) {
 	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		DBHost, DBPort, DBUser, DBPass, DBName, DBSSL)
 	db, err := sql.Open("postgres", dbinfo)
@@ -616,17 +618,26 @@ func CallbackCall(sess *agi.Session) {
 	}
 	db.Close()
 	if len(arg1) != 0 && len(arg2) != 0 && len(arg3) != 0 && len(arg4) != 0 {
-		buf := bytes.NewBufferString("")
-		call := fmt.Sprintf(CALLBACKSET, arg3, arg2, arg1, arg1, arg1, arg2, arg3, arg4, "0", "0", "FALSE")
-		buf.Write([]byte(call))
-		dst := CALLBACKDST + sess.Env["callerid"]
-		f, _ := os.OpenFile(dst, os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0666)
-		f.Write(buf.Bytes())
-		defer f.Close()
-		err = os.Chmod(dst, 0777)
-		if err != nil {
-			LoggerErr(err)
-		}
+		CallbackCall(sess, arg1, arg2, arg3, arg4, true)
+	}
+}
+
+func CallbackCall(sess *agi.Session, arg1 string, arg2 string, arg3 string, arg4 string, earg bool) {
+	buf := bytes.NewBufferString("")
+	var call string
+	if earg == true {
+		call = fmt.Sprintf(CALLBACKSET, arg3, arg2, arg1, arg1, arg1, arg2, arg3, arg4, "0", "0", "FALSE")
+	} else {
+		call = fmt.Sprintf(CALLBACKCONFBRIDGE, arg1, arg1, arg1, arg1, arg1, "0", "0", "FALSE")
+	}
+	buf.Write([]byte(call))
+	dst := CALLBACKDST + sess.Env["callerid"]
+	f, _ := os.OpenFile(dst, os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0666)
+	f.Write(buf.Bytes())
+	defer f.Close()
+	err := os.Chmod(dst, 0777)
+	if err != nil {
+		LoggerErr(err)
 	}
 }
 
@@ -754,7 +765,7 @@ func ConfBridgeAddMembers(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	} else {
-		callerid := sess.Env["callerid"]
+//		callerid := sess.Env["callerid"]
 		_, err := sess.Exec("DumpChan", "255")
 		if err != nil {
 			LoggerErr(err)
@@ -770,17 +781,17 @@ func ConfBridgeAddMembers(sess *agi.Session) {
 		o["Data"] = fmt.Sprintf("%s,,,%s", sess.Env["extension"] + "0", UMENU)
 
 		if len(dst.Dat) == inner_num {
-//			amiAction(o)
-			_, err = sess.Exec("Originate",
-				fmt.Sprintf("SIP/%s,exten,%s,%s,1", dst.Dat, CONFBRIDGE_CONFS, callerid))
+			CallbackCall(sess, dst.Dat, dst.Dat, dst.Dat, dst.Dat, false)
+//			_, err = sess.Exec("Originate",
+//				fmt.Sprintf("SIP/%s,exten,%s,%s,1", dst.Dat, CONFBRIDGE_CONFS, callerid))
 		} else if len(dst.Dat) == outer_num {
 //			_, err := sess.SetVariable("CALLERID(num)", OUTPEER)
 
-			_, err = sess.Exec("Originate",
-				fmt.Sprintf("SIP/%s@%s,exten,%s,%s,1", dst.Dat, OUTPEER, CONFBRIDGE_CONFS, callerid))
-			if err != nil {
-				LoggerErr(err)
-			}
+//			_, err = sess.Exec("Originate",
+//				fmt.Sprintf("SIP/%s@%s,exten,%s,%s,1", dst.Dat, OUTPEER, CONFBRIDGE_CONFS, callerid))
+//			if err != nil {
+//				LoggerErr(err)
+//			}
 		} else {
 			LoggerString("NUM LENGTH NOT VALID")
 		}
@@ -1189,6 +1200,7 @@ func init() {
 	CALLBACKDST = conf.Callback.DstDir
 	CALLBACKQUERY = conf.Callback.Query
 	CALLBACKSET = conf.Callback.Set
+	CALLBACKCONFBRIDGE = conf.Callback.SetConfbridge
 
 	MAILSERVER = conf.Mail.Server
 	MAILPORT = conf.Mail.Port
