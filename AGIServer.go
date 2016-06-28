@@ -630,7 +630,7 @@ func CallbackCall(sess *agi.Session, arg1 string, arg2 string, arg3 string, arg4
 		call = fmt.Sprintf(CALLBACKSET, arg3, arg2, arg1, arg1, arg1, arg2, arg3, arg4, "0", "0", "FALSE")
 		dst = CALLBACKDST + sess.Env["callerid"]
 	} else {
-		call = fmt.Sprintf(CALLBACKCONFBRIDGE, arg1, arg1, arg1, arg1, arg1, "0", "0", "FALSE")
+		call = fmt.Sprintf(CALLBACKCONFBRIDGE, arg1, arg1, arg1)
 		dst = CALLBACKDST + arg1
 	}
 	buf.Write([]byte(call))
