@@ -633,7 +633,6 @@ func CallbackCall(sess *agi.Session, arg1 string, arg2 string, arg3 string, arg4
 		call = fmt.Sprintf(CALLBACKCONFBRIDGE, arg1, arg1, arg1, arg1, arg1, "0", "0", "FALSE")
 		dst = CALLBACKDST + arg1
 	}
-	LoggerString(call)
 	buf.Write([]byte(call))
 	f, _ := os.OpenFile(dst, os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0666)
 	f.Write(buf.Bytes())
