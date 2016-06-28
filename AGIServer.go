@@ -625,14 +625,16 @@ func CallbackCheck(sess *agi.Session) {
 func CallbackCall(sess *agi.Session, arg1 string, arg2 string, arg3 string, arg4 string, earg bool) {
 	buf := bytes.NewBufferString("")
 	var call string
+	var dst string
 	if earg == true {
 		call = fmt.Sprintf(CALLBACKSET, arg3, arg2, arg1, arg1, arg1, arg2, arg3, arg4, "0", "0", "FALSE")
+		dst = CALLBACKDST + sess.Env["callerid"]
 	} else {
 		call = fmt.Sprintf(CALLBACKCONFBRIDGE, arg1, arg1, arg1, arg1, arg1, "0", "0", "FALSE")
+		dst = arg1
 	}
 	LoggerString(call)
 	buf.Write([]byte(call))
-	dst := CALLBACKDST + sess.Env["callerid"]
 	f, _ := os.OpenFile(dst, os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0666)
 	f.Write(buf.Bytes())
 	defer f.Close()
