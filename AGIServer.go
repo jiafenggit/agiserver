@@ -786,7 +786,7 @@ func ConfBridgeAddMembers(sess *agi.Session) {
 				LoggerErr(err)
 			}
 		} else {
-//			LoggerString("NUM LENGTH NOT VALID")
+			LoggerString("NUM LENGTH NOT VALID")
 		}
 		if err != nil {
 			LoggerErr(err)
