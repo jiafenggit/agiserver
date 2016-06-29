@@ -676,8 +676,8 @@ func ConfBridgeChannelRedirect(sess *agi.Session) {
 			rc2["Exten"] = confno.Dat
 			rc2["Context"] = CONFBRIDGE_CONTEXT
 //			ConfBridgeSettings(sess.Env["uniqueid"])
-			RedirectChan(rc1)
 			RedirectChan(rc2)
+			RedirectChan(rc1)
 			LoggerString(fmt.Sprintf("Try create Confbridge CONFNO %s Channel1 %s Channel2 %s",
 				confno.Dat, sess.Env["channel"], bridgepeer.Dat))
 
