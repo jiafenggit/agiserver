@@ -65,6 +65,7 @@ var (
 	CALLBACKDST, CALLBACKQUERY, CALLBACKSET, CALLBACKCONFBRIDGE string
 	BLOCKPSTNQUERY string
 	UEBLOCKEDABON string
+	AGI2AMI, AGI2AMICONFBRIDGE string
 )
 
 type Config struct {
@@ -108,7 +109,9 @@ type Balance struct {
 }
 
 type UserEvents struct {
-	BlockedAbon string
+	BlockedAbon 		string
+	AGI2AMI 		string
+	AGI2AMIConfBridge	string
 }
 
 type BlockFromPSTN struct {
@@ -653,17 +656,6 @@ func RedirectChan(mm map[string]string) {
 	amiAction(r)
 }
 
-func chRedirect(ch string, sess *agi.Session) {
-	confno, err := sess.GetVariable("CONFNO")
-	if err != nil {
-		LoggerErr(err)
-	}
-	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", ch, CONFBRIDGE_CONTEXT, confno.Dat))
-	if err != nil {
-		LoggerErr(err)
-	}
-}
-
 //test 1
 func ConfBridgeChannelRedirect(sess *agi.Session) {
 	confno, err := sess.GetVariable("CONFNO")
@@ -683,37 +675,22 @@ func ConfBridgeChannelRedirect(sess *agi.Session) {
 			rc2["Channel"] = bridgepeer.Dat
 			rc2["Exten"] = confno.Dat
 			rc2["Context"] = CONFBRIDGE_CONTEXT
-			//	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", confno.Dat, AMENU))
-			//	chRedirect(sess.Env["channel"], sess)
-			//	chRedirect(bridgepeer.Dat, sess)
 			RedirectChan(rc1)
 			RedirectChan(rc2)
 			LoggerString(fmt.Sprintf("Try create Confbridge CONFNO %s Channel1 %s Channel2 %s",
 				confno.Dat, sess.Env["channel"], bridgepeer.Dat))
+			ConfBridgeSettings(sess)
 		}
 	}
 
-//	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", bridgepeer.Dat, CONFBRIDGE_CONTEXT, confno.Dat))
-//	if err != nil {
-//		LoggerErr(err)
-//	}
-//	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", confno.Dat, AMENU))
-//	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", bridgepeer.Dat, CONFBRIDGE_CONTEXT, confno.Dat))
-//	if err != nil {
-//		LoggerErr(err)
-//	}
-//	_, err = sess.Exec("Goto", fmt.Sprintf("%s,%s,1", CONFBRIDGE_CONTEXT, confno.Dat))
-//	if err != nil {
-//		LoggerErr(err)
-//	}
+}
 
-/*
-	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", sess.Env["channel"], CONFBRIDGE_CONTEXT, confno.Dat))
-	if err != nil {
-		LoggerErr(err)
-	}
-*/
-
+func ConfBridgeSettings(sess *agi.Session) {
+	var r = make(map[string]string)
+	r["UserEvent"] = AGI2AMI
+	r["Action"] = AGI2AMICONFBRIDGE
+	r["Uniqueid"] = sess.Env["uniqueid"]
+	amiAction(r)
 }
 
 //test 2
@@ -744,17 +721,6 @@ func ConfBridgeAccess(sess *agi.Session) {
 		LoggerErr(err)
 	}
 	LoggerString("Confbridge Admin " + sess.Env["extension"])
-}
-
-func OriginateAction(mm map[string]string) {
-	LoggerMap(mm)
-	var r = make(map[string]string)
-	r["Action"] = "Originate"
-	r["Channel"] = mm["Channel"]
-	r["Exten"] = mm["Exten"]
-	r["Context"] = mm["Context"]
-	r["Priority"] = mm["Priority"]
-	amiAction(r)
 }
 
 //test 3
@@ -1208,6 +1174,9 @@ func init() {
 
 	BLOCKPSTNQUERY = conf.BlockFromPSTN.Query
 	UEBLOCKEDABON = conf.UserEvents.BlockedAbon
+
+	AGI2AMI = conf.UserEvents.AGI2AMI
+	AGI2AMICONFBRIDGE = conf.UserEvents.AGI2AMIConfBridge
 
 	BALDIR = conf.Balance.Dir
 	BALDDIR = conf.Balance.DDir
