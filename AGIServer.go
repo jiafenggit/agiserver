@@ -1,3 +1,4 @@
+
 package main
 
 import (
@@ -57,9 +58,9 @@ var (
 	TG []string
 	TGPATH string
 	unquotedChar  = `[^",\\{}\s(NULL)]`
-    	unquotedValue = fmt.Sprintf("(%s)+", unquotedChar)
-    	quotedChar  = `[^"\\]|\\"|\\\\`
-    	quotedValue = fmt.Sprintf("\"(%s)*\"", quotedChar)
+	unquotedValue = fmt.Sprintf("(%s)+", unquotedChar)
+	quotedChar  = `[^"\\]|\\"|\\\\`
+	quotedValue = fmt.Sprintf("\"(%s)*\"", quotedChar)
 	arrayValue = fmt.Sprintf("(?P<value>(%s|%s))", unquotedValue, quotedValue)
 	arrayExp = regexp.MustCompile(fmt.Sprintf("((%s)(,)?)", arrayValue))
 	CALLBACKDST, CALLBACKQUERY, CALLBACKSET, CALLBACKCONFBRIDGE string
@@ -280,7 +281,7 @@ func agiSess(sess *agi.Session) {
 		case "confbridge_confs" :
 			ConfBridgeConfs(sess)
 		case "callback_call" :
-//			CallbackCall(sess)
+			//			CallbackCall(sess)
 			CallbackCheck(sess)
 		case "fax_receive" :
 			FaxRecv(sess)
@@ -563,12 +564,12 @@ func BlockedFromPSTN(sess *agi.Session) {
 }
 
 func isValueInList(value string, list []string) bool {
-    	for _, v := range list {
-        	if v == value {
-            		return true
-        	}
-    	}
-    	return false
+	for _, v := range list {
+		if v == value {
+			return true
+		}
+	}
+	return false
 }
 
 func FaxRecv(sess *agi.Session) {
@@ -598,7 +599,7 @@ func FaxRecv(sess *agi.Session) {
 			fs.Dat, sess.Env["callerid"], sess.Env["dnid"], fp.Dat, fb.Dat, fr.Dat)
 		NotifyMail("ФаксВходящий", sess.Env["callerid"], msg, MAIL)
 		NotifyMail("ФаксВходящий", sess.Env["callerid"], msg, "fax-"+sess.Env["dnid"])
-//		NotifyTG(msg)
+		//		NotifyTG(msg)
 	}
 	sess.Hangup()
 }
@@ -676,8 +677,8 @@ func ConfBridgeChannelRedirect(sess *agi.Session) {
 			rc2["Exten"] = confno.Dat
 			rc2["Context"] = CONFBRIDGE_CONTEXT
 //			ConfBridgeSettings(sess.Env["uniqueid"])
-			RedirectChan(rc2)
 			RedirectChan(rc1)
+			RedirectChan(rc2)
 			LoggerString(fmt.Sprintf("Try create Confbridge CONFNO %s Channel1 %s Channel2 %s",
 				confno.Dat, sess.Env["channel"], bridgepeer.Dat))
 
@@ -742,13 +743,13 @@ func ConfBridgeAddMembers(sess *agi.Session) {
 		outer_num, err := strconv.Atoi(LEN_OUTER_NUM)
 		if len(dst.Dat) == inner_num {
 			CallbackCall(sess, dst.Dat, dst.Dat, dst.Dat, dst.Dat, false)
-//			_, err = sess.Exec("Originate",
-//				fmt.Sprintf("SIP/%s,exten,%s,%s,1", dst.Dat, CONFBRIDGE_CONFS, callerid))
+			//			_, err = sess.Exec("Originate",
+			//				fmt.Sprintf("SIP/%s,exten,%s,%s,1", dst.Dat, CONFBRIDGE_CONFS, callerid))
 		} else if len(dst.Dat) == outer_num {
 			_, err := sess.SetVariable("CALLERID(num)", OUTPEER)
 
-//			_, err = sess.Exec("Originate",
-//				fmt.Sprintf("SIP/%s@%s,exten,%s,%s,1", dst.Dat, OUTPEER, CONFBRIDGE_CONFS, callerid))
+			//			_, err = sess.Exec("Originate",
+			//				fmt.Sprintf("SIP/%s@%s,exten,%s,%s,1", dst.Dat, OUTPEER, CONFBRIDGE_CONFS, callerid))
 			if err != nil {
 				LoggerErr(err)
 			}
@@ -773,7 +774,7 @@ func ConfBridgeConfs(sess *agi.Session) {
 		LoggerErr(err)
 	}
 
-//	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", sess.Env["channel"], CONFBRIDGE_CONTEXT, sess.Env["extension"]))
+	//	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", sess.Env["channel"], CONFBRIDGE_CONTEXT, sess.Env["extension"]))
 
 	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"], UMENU))
 	if err != nil {
@@ -784,7 +785,7 @@ func ConfBridgeConfs(sess *agi.Session) {
 
 //test
 func InboundCall(sess *agi.Session) {
-//	LoggerString("INCOMING NUM    " + sess.Env["callerid"])
+	//	LoggerString("INCOMING NUM    " + sess.Env["callerid"])
 	rex, err := regexp.Compile(`^[7|8](\d{10})$`)
 	res := rex.FindStringSubmatch(sess.Env["callerid"])
 	if res != nil {
@@ -796,11 +797,11 @@ func InboundCall(sess *agi.Session) {
 			LoggerString("NUM CHANGED TO  " + res[1])
 		}
 		_, err = sess.SetVariable("CALLERID(name)", res[1])
-			if err != nil {
+		if err != nil {
 			LoggerErr(err)
 		}
 	} else {
-//		LoggerString("NUM NOT CHANGED " + sess.Env["callerid"])
+		//		LoggerString("NUM NOT CHANGED " + sess.Env["callerid"])
 	}
 	if err != nil {
 		LoggerErr(err)
@@ -1039,15 +1040,15 @@ func sqlGetArray(query string) []string {
 }
 
 func pgArrayToSlice(array string) []string {
-    var valueIndex int
-    results := make([]string, 0)
-    matches := arrayExp.FindAllStringSubmatch(array, -1)
-    for _, match := range matches {
-        s := match[valueIndex]
-        s = strings.Trim(s, "\"")
-        results = append(results, s)
-    }
-    return results
+	var valueIndex int
+	results := make([]string, 0)
+	matches := arrayExp.FindAllStringSubmatch(array, -1)
+	for _, match := range matches {
+		s := match[valueIndex]
+		s = strings.Trim(s, "\"")
+		results = append(results, s)
+	}
+	return results
 }
 
 func NotifyMail(action string, category string, message string, mailto string) {
@@ -1114,8 +1115,8 @@ func init() {
 	}
 
 	hasher := md5.New()
-    	hasher.Write([]byte(k))
-    	key := hex.EncodeToString(hasher.Sum(nil))
+	hasher.Write([]byte(k))
+	key := hex.EncodeToString(hasher.Sum(nil))
 
 	content := string(data[:count])
 	df := decrypt(content, key)
@@ -1213,12 +1214,12 @@ func main() {
 }
 
 func LoggerMap(s map[string]string) {
-  	tf := timeFormat()
+	tf := timeFormat()
 	f, _ := os.OpenFile(LOGPATH+_DN, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
- 	log.SetOutput(f)
-  	log.Print(tf)
-  	log.Print(s)
-  	fmt.Println(s)
+	log.SetOutput(f)
+	log.Print(tf)
+	log.Print(s)
+	fmt.Println(s)
 }
 
 func LoggerString(s string) {
@@ -1267,6 +1268,6 @@ func LoggerErr(e error) {
 
 func timeFormat() (string) {
 	t := time.Now()
-  	tf := fmt.Sprintf("%d-%02d-%02d %02d:%02d:%02d\n", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
-  	return tf
+	tf := fmt.Sprintf("%d-%02d-%02d %02d:%02d:%02d\n", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
+	return tf
 }
