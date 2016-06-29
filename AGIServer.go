@@ -675,21 +675,22 @@ func ConfBridgeChannelRedirect(sess *agi.Session) {
 			rc2["Channel"] = bridgepeer.Dat
 			rc2["Exten"] = confno.Dat
 			rc2["Context"] = CONFBRIDGE_CONTEXT
+			ConfBridgeSettings(sess.Env["uniqueid"])
 			RedirectChan(rc1)
 			RedirectChan(rc2)
 			LoggerString(fmt.Sprintf("Try create Confbridge CONFNO %s Channel1 %s Channel2 %s",
 				confno.Dat, sess.Env["channel"], bridgepeer.Dat))
-			ConfBridgeSettings(sess)
+
 		}
 	}
 
 }
 
-func ConfBridgeSettings(sess *agi.Session) {
+func ConfBridgeSettings(uniqueid string) {
 	var r = make(map[string]string)
 	r["UserEvent"] = AGI2AMI
 	r["Action"] = AGI2AMICONFBRIDGE
-	r["Uniqueid"] = sess.Env["uniqueid"]
+	r["Uniqueid"] = uniqueid
 	amiAction(r)
 }
 
