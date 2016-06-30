@@ -275,8 +275,8 @@ func agiSess(sess *agi.Session) {
 			ConfBridgeAccess(sess)
 		case "confbridge_channelredirect" :
 			ConfBridgeChannelRedirect(sess)
-		case "confbridge_addmembers" :
-			ConfBridgeAddMembers(sess)
+//		case "confbridge_addmembers" :
+//			ConfBridgeAddMembers(sess)
 		case "confbridge_confs" :
 			ConfBridgeConfs(sess)
 		case "callback_call" :
@@ -726,43 +726,7 @@ func ConfBridgeAccess(sess *agi.Session) {
 	LoggerString("Confbridge Admin " + sess.Env["extension"])
 }
 
-//test 3
-func ConfBridgeAddMembers(sess *agi.Session) {
-	_, err := sess.Exec("Read", "DST," + CONFBRIDGE_MEMBER_ADD + ",maxdigits,,2,12")
-	if err != nil {
-		LoggerErr(err)
-	}
-	dst, err := sess.GetVariable("DST")
-	if err != nil {
-		LoggerErr(err)
-	} else {
-		_, err := sess.Exec("DumpChan", "255")
-		if err != nil {
-			LoggerErr(err)
-		}
-		inner_num, err := strconv.Atoi(LEN_INNER_NUM)
-		outer_num, err := strconv.Atoi(LEN_OUTER_NUM)
-		if len(dst.Dat) == inner_num {
-			CallbackCall(sess, dst.Dat, dst.Dat, dst.Dat, dst.Dat, false)
-			//			_, err = sess.Exec("Originate",
-			//				fmt.Sprintf("SIP/%s,exten,%s,%s,1", dst.Dat, CONFBRIDGE_CONFS, callerid))
-		} else if len(dst.Dat) == outer_num {
-			_, err := sess.SetVariable("CALLERID(num)", OUTPEER)
 
-			//			_, err = sess.Exec("Originate",
-			//				fmt.Sprintf("SIP/%s@%s,exten,%s,%s,1", dst.Dat, OUTPEER, CONFBRIDGE_CONFS, callerid))
-			if err != nil {
-				LoggerErr(err)
-			}
-		} else {
-			LoggerString("NUM LENGTH NOT VALID")
-		}
-		if err != nil {
-			LoggerErr(err)
-		}
-	}
-	LoggerString("Confbridge Admin " + sess.Env["callerid"] + " try add " + dst.Dat)
-}
 
 //test 4
 func ConfBridgeConfs(sess *agi.Session) {
@@ -774,9 +738,6 @@ func ConfBridgeConfs(sess *agi.Session) {
 	if err != nil {
 		LoggerErr(err)
 	}
-
-	//	_, err = sess.Exec("ChannelRedirect", fmt.Sprintf("%s,%s,%s,1", sess.Env["channel"], CONFBRIDGE_CONTEXT, sess.Env["extension"]))
-
 	_, err = sess.Exec("ConfBridge", fmt.Sprintf("%s,,,%s", sess.Env["extension"], UMENU))
 	if err != nil {
 		LoggerErr(err)
