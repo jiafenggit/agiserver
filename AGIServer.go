@@ -690,7 +690,7 @@ func ConfBridgeSettings(uniqueid string) {
 	var r = make(map[string]string)
 	r["Event"] = "UserEvent"
 	r["UserEvent"] = AGI2AMI
-	r["Action"] = AGI2AMICONFBRIDGE
+	r["Act"] = AGI2AMICONFBRIDGE
 	r["Uniqueid"] = uniqueid
 	LoggerMap(r)
 	amiAction(r)
