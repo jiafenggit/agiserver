@@ -1000,7 +1000,7 @@ func amiAction(mm map[string]string) {
 	buf := bytes.NewBufferString("")
 	for k, v := range mm {
 		buf.Write([]byte(k))
-		buf.Write([]byte(_KVT))
+		buf.Write([]byte(_KVT+" "))
 		buf.Write([]byte(v))
 		buf.Write([]byte(_LT))
 		LoggerString(k)
