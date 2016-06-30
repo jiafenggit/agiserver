@@ -688,9 +688,9 @@ func ConfBridgeChannelRedirect(sess *agi.Session) {
 
 func ConfBridgeSettings(uniqueid string) {
 	var r = make(map[string]string)
-	r["Event"] = "UserEvent"
+	r["Action"] = "UserEvent"
 	r["UserEvent"] = AGI2AMI
-	r["Act"] = AGI2AMICONFBRIDGE
+	r["ActionVar"] = AGI2AMICONFBRIDGE
 	r["Uniqueid"] = uniqueid
 	LoggerMap(r)
 	amiAction(r)
