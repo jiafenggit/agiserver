@@ -275,12 +275,9 @@ func agiSess(sess *agi.Session) {
 			ConfBridgeAccess(sess)
 		case "confbridge_channelredirect" :
 			ConfBridgeChannelRedirect(sess)
-//		case "confbridge_addmembers" :
-//			ConfBridgeAddMembers(sess)
 		case "confbridge_confs" :
 			ConfBridgeConfs(sess)
 		case "callback_call" :
-			//			CallbackCall(sess)
 			CallbackCheck(sess)
 		case "fax_receive" :
 			FaxRecv(sess)
