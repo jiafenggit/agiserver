@@ -592,10 +592,14 @@ func FaxRecv(sess *agi.Session) {
 			fs.Dat = "FAILED"
 		}
 		msg := fmt.Sprintf("Статус: %s\nС номера: %s\nНа номер: %s\nКоличество страниц: %s\nСкорость передачи(bitrate): %s\nРазрешение файла: %s",
-			fs.Dat, sess.Env["callerid"], sess.Env["dnid"], fp.Dat, fb.Dat, fr.Dat)
+			fs.Dat,
+			sess.Env["callerid"],
+			sess.Env["dnid"],
+			fp.Dat,
+			fb.Dat,
+			fr.Dat)
 		NotifyMail("ФаксВходящий", sess.Env["callerid"], msg, MAIL)
 		NotifyMail("ФаксВходящий", sess.Env["callerid"], msg, "fax-"+sess.Env["dnid"])
-		//		NotifyTG(msg)
 	}
 	sess.Hangup()
 }
@@ -653,7 +657,6 @@ func RedirectChan(mm map[string]string) {
 	amiAction(r)
 }
 
-//test 1
 func ConfBridgeChannelRedirect(sess *agi.Session) {
 	confno, err := sess.GetVariable("CONFNO")
 	if err != nil {
@@ -693,7 +696,6 @@ func ConfBridgeSettings(uniqueid string) {
 	amiAction(r)
 }
 
-//test 2
 func ConfBridgeAccess(sess *agi.Session) {
 	sess.Answer()
 	_, err := sess.SetVariable("__CONFNO", sess.Env["extension"])
@@ -723,9 +725,6 @@ func ConfBridgeAccess(sess *agi.Session) {
 	LoggerString("Confbridge Admin " + sess.Env["extension"])
 }
 
-
-
-//test 4
 func ConfBridgeConfs(sess *agi.Session) {
 	_, err := sess.Exec("DumpChan", "255")
 	if err != nil {
@@ -742,7 +741,6 @@ func ConfBridgeConfs(sess *agi.Session) {
 	LoggerString("Confbridge Admin add " + sess.Env["extension"])
 }
 
-//test
 func InboundCall(sess *agi.Session) {
 	//	LoggerString("INCOMING NUM    " + sess.Env["callerid"])
 	rex, err := regexp.Compile(`^[7|8](\d{10})$`)
