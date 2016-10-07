@@ -215,7 +215,7 @@ func (service *Service) Manage() (string, error) {
 	}
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, os.Kill, syscall.SIGTERM)
-
+	go forever()
 	astEnv := getAstEnv()
 	if astEnv["AST_AGI_DIR"] != "" {
 		spawnAgi(nil)
@@ -235,7 +235,6 @@ func (service *Service) Manage() (string, error) {
 			go spawnAgi(conn)
 		}
 	}
-	go forever()
 	return usage, nil
 }
 
