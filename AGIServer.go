@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"net/smtp"
+	"math/rand"
 	"os/signal"
 	"crypto/md5"
 	"crypto/aes"
@@ -32,12 +33,13 @@ const (
 	_DD	 	= "AGIServer"
 	_LT		= "\x0D\x0A"
 	_KVT 		= ":"
+	_AC		= 7200 * time.Second
 )
 
 var (
 	LOGPATH = ""
 	ALLOW, DENY []string //ALLOW, DENY NETWORKS
-	DBPass, DBName, DBHost, DBPort, DBUser, DBSSL string
+	DBPass, DBName, DBHost, DBPort, DBUser, DBSSL, DBType string
 	CONFBRIDGE_FEATURES string //CONFBRIDGE DYNAMIC FEATURES
 	CONFBRIDGE_CONTEXT string //CONFBRIDGE CONTEXT
 	CONFBRIDGE_ADD_CONTEXT string //CONFBRIDGE ADD USERS CONTEXT
@@ -63,14 +65,16 @@ var (
 	arrayValue = fmt.Sprintf("(?P<value>(%s|%s))", unquotedValue, quotedValue)
 	arrayExp = regexp.MustCompile(fmt.Sprintf("((%s)(,)?)", arrayValue))
 	CALLBACKDST, CALLBACKQUERY, CALLBACKSET, CALLBACKCONFBRIDGE string
+	TARGETQUERY string
 	BLOCKPSTNQUERY string
 	UEBLOCKEDABON string
 	AGI2AMI, AGI2AMICONFBRIDGE string
+	ST = time.Now().Unix()
 )
 
 type Config struct {
 	Tg Tg
-	Pg Pg
+	DB DB
 	Ami Ami
 	Fax Fax
 	Mail Mail
@@ -81,6 +85,7 @@ type Config struct {
 	AgiServer AgiServer
 	Confbridge Confbridge
 	UserEvents UserEvents
+//	TargetCall TargetCall
 	BlockFromPSTN BlockFromPSTN
 }
 
@@ -123,13 +128,14 @@ type Tg struct {
 	Path 	string
 }
 
-type Pg struct {
-	DBPort 	string
-	DBHost 	string
-	DBUser 	string
-	DBPass 	string
-	DBName 	string
-	DBSSL 	string
+type DB struct {
+	Port	string
+	Host	string
+	User	string
+	Pass	string
+	Name	string
+	SSL	string
+	Type	string
 }
 
 type Mail struct {
@@ -177,6 +183,13 @@ type Callback struct {
 	SetConfbridge string
 }
 
+/*
+type TargetCall struct {
+	Query	string
+
+}
+*/
+
 type Service struct {
 	daemon.Daemon
 }
@@ -222,6 +235,7 @@ func (service *Service) Manage() (string, error) {
 			go spawnAgi(conn)
 		}
 	}
+	go forever()
 	return usage, nil
 }
 
@@ -285,6 +299,10 @@ func agiSess(sess *agi.Session) {
 			BlockedFromPSTN(sess)
 		case "balance" :
 			BalanceInfo(sess)
+		case "target_call" :
+			TargetCall(sess)
+		case "call1" :
+			Call1(sess)
 		default:
 			sess.Verbose("DEFAULT STARTVAR")
 		}
@@ -292,6 +310,38 @@ func agiSess(sess *agi.Session) {
 	sess.Verbose("================== Complete ======================")
 	sess.Verbose("STARTVAR IS " + startvar.Dat)
 	return
+}
+
+func arrayShuffle(a []string) []string {
+	rand.Seed(time.Now().UnixNano())
+	for i := range a {
+		j:= rand.Intn(i + 1)
+		a[i], a[j] = a[j], a[i]
+	}
+	return a
+}
+
+func Call1(sess *agi.Session)  {
+
+}
+
+func TargetCall(sess *agi.Session) {
+	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		DBHost, DBPort, DBUser, DBPass, DBName, DBSSL)
+	db, err := sql.Open(DBType, dbinfo)
+	if (err != nil) {
+		LoggerErr(err)
+	}
+	rows, err := db.Query(fmt.Sprintf(TARGETQUERY, sess.Env["dnid"]))
+	if err != nil {
+		LoggerErr(err)
+	}
+	defer rows.Close()
+	var arg1, arg2, arg3, arg4, arg5 string
+	for rows.Next() {
+		rows.Scan(&arg1, &arg2, &arg3, &arg4, &arg5)
+	}
+	db.Close()
 }
 
 func BalanceInfo(sess *agi.Session) {
@@ -536,7 +586,7 @@ func BalanceMoney(sess *agi.Session, class string, d int) {
 func BlockedFromPSTN(sess *agi.Session) {
 	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		DBHost, DBPort, DBUser, DBPass, DBName, DBSSL)
-	db, err := sql.Open("postgres", dbinfo)
+	db, err := sql.Open(DBType, dbinfo)
 	if (err != nil) {
 		LoggerErr(err)
 	}
@@ -607,7 +657,7 @@ func FaxRecv(sess *agi.Session) {
 func CallbackCheck(sess *agi.Session) {
 	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		DBHost, DBPort, DBUser, DBPass, DBName, DBSSL)
-	db, err := sql.Open("postgres", dbinfo)
+	db, err := sql.Open(DBType, dbinfo)
 	if (err != nil) {
 		LoggerErr(err)
 	}
@@ -935,7 +985,7 @@ func NotifyTG(tg_msg string) {
 func sqlPut(query string) {
 	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		DBHost, DBPort, DBUser, DBPass, DBName, DBSSL)
-	db, err := sql.Open("postgres", dbinfo)
+	db, err := sql.Open(DBType, dbinfo)
 	if (err != nil) {
 		fmt.Println(err)
 	}
@@ -970,7 +1020,7 @@ func amiAction(mm map[string]string) {
 func sqlGetArray(query string) []string {
 	dbinfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		DBHost, DBPort, DBUser, DBPass, DBName, DBSSL)
-	db, err := sql.Open("postgres", dbinfo)
+	db, err := sql.Open(DBType, dbinfo)
 	if (err != nil) {
 		LoggerErr(err)
 	}
@@ -986,7 +1036,7 @@ func sqlGetArray(query string) []string {
 	var el []string
 	for rows.Next() {
 		rows.Scan(&arr)
-		VAR := pgArrayToSlice(arr)
+		VAR := ArrayToSlice(arr)
 		el = append(el, VAR...)
 	}
 	if (len(el) < 1) {
@@ -996,7 +1046,7 @@ func sqlGetArray(query string) []string {
 	return el
 }
 
-func pgArrayToSlice(array string) []string {
+func ArrayToSlice(array string) []string {
 	var valueIndex int
 	results := make([]string, 0)
 	matches := arrayExp.FindAllStringSubmatch(array, -1)
@@ -1105,12 +1155,13 @@ func init() {
 	AMENU = conf.Confbridge.AdminMenu
 	UMENU = conf.Confbridge.UserMenu
 
-	DBPass = conf.Pg.DBPass
-	DBName = conf.Pg.DBName
-	DBHost = conf.Pg.DBHost
-	DBPort = conf.Pg.DBPort
-	DBUser = conf.Pg.DBUser
-	DBSSL = conf.Pg.DBSSL
+	DBPass = conf.DB.Pass
+	DBName = conf.DB.Name
+	DBHost = conf.DB.Host
+	DBPort = conf.DB.Port
+	DBUser = conf.DB.User
+	DBSSL = conf.DB.SSL
+	DBType = conf.DB.Type
 
 	AGIHOST = conf.AgiServer.Host
 	AGIPORT = conf.AgiServer.Port
@@ -1119,6 +1170,8 @@ func init() {
 	CALLBACKQUERY = conf.Callback.Query
 	CALLBACKSET = conf.Callback.Set
 	CALLBACKCONFBRIDGE = conf.Callback.SetConfbridge
+
+//	TARGETQUERY = conf.TargetCall.Query
 
 	MAILSERVER = conf.Mail.Server
 	MAILPORT = conf.Mail.Port
@@ -1168,6 +1221,28 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Println(status)
+}
+
+func forever() {
+	for {
+		lt := LifeTime(time.Now().Unix())
+		NotifyTG(fmt.Sprintf("%s %s", _DD, lt))
+		time.Sleep(_AC)
+	}
+}
+
+func LifeTime(s int64) string {
+	diff := (s - ST)
+	day := (diff/86400)
+	hour := (diff/3600)
+	min := (diff%3600)/60
+	sec := (diff%3600)%60
+	ds := strconv.FormatInt(day, 10)
+	hs := strconv.FormatInt(hour, 10)
+	ms := strconv.FormatInt(min, 10)
+	ss := strconv.FormatInt(sec, 10)
+	r := fmt.Sprintf("%s Days %02s:%02s:%02s", ds, hs, ms, ss)
+	return r
 }
 
 func LoggerMap(s map[string]string) {
