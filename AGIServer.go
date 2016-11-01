@@ -33,7 +33,7 @@ const (
 	_DD	 	= "AGIServer"
 	_LT		= "\x0D\x0A"
 	_KVT 		= ":"
-	_AC		= 7200 * time.Second
+	_AC		= 43200 * time.Second
 )
 
 var (
@@ -1114,7 +1114,7 @@ func init() {
 	if err != nil {
 		LoggerString(err.Error())
 	}
-	data := make([]byte, 10000)
+	data := make([]byte, 20000)
 	count, err := f.Read(data)
 	if err != nil {
 		log.Fatal(err)
