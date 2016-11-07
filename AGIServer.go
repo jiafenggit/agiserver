@@ -366,6 +366,7 @@ func BalanceInfo(sess *agi.Session) {
 		sess.Verbose("< 0")
 		FILES = []string{BALNOMONEY, BALONCONRACT, BALMINUS}
 		eBackground(sess, BALDIR, FILES)
+/*
 	} else if bif > 0 && bif < 500 {
 		sess.Verbose("0 > < 500")
 		FILES = []string{BALONCONRACT}
@@ -374,6 +375,7 @@ func BalanceInfo(sess *agi.Session) {
 		sess.Verbose("> 500")
 		FILES = []string{BALRICH, BALONCONRACT}
 		eBackground(sess, BALDIR, FILES)
+*/
 	} else {
 		sess.Verbose("ELSE")
 		FILES = []string{BALONCONRACT}
@@ -1250,7 +1252,6 @@ func LoggerMap(s map[string]string) {
 	log.SetOutput(f)
 	log.Print(tf)
 	log.Print(s)
-	fmt.Println(s)
 }
 
 func LoggerString(s string) {
